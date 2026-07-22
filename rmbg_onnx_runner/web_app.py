@@ -241,7 +241,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--model", default=str(DEFAULT_MODEL))
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUTS))
-    parser.add_argument("--provider", choices=["cuda", "auto", "cpu"], default="cuda")
+    parser.add_argument(
+        "--provider",
+        choices=["auto", "cuda", "coreml", "cpu"],
+        default="auto",
+    )
     parser.add_argument("--strict-provider", action="store_true")
     parser.add_argument("--max-upload-mb", type=int, default=1024)
     parser.add_argument("--open", action="store_true", help="Open the browser after loading the model.")

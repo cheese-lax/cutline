@@ -7,10 +7,6 @@ import sys
 from pathlib import Path
 
 import onnxruntime as ort
-
-if hasattr(ort, "preload_dlls"):
-    ort.preload_dlls(directory="")
-
 from rmbg_onnx import choose_providers
 
 
@@ -34,15 +30,23 @@ def run_nvidia_smi() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check RMBG-2.0 ONNX runtime environment.")
     parser.add_argument("--model", default="model.onnx", help="Optional ONNX model path to inspect.")
-    parser.add_argument("--provider", choices=["cuda", "auto", "cpu"], default="cuda")
+    parser.add_argument(
+        "--provider",
+        choices=["auto", "cuda", "coreml", "cpu"],
+        default="auto",
+    )
     args = parser.parse_args()
 
     print(f"platform: {platform.platform()}")
     print(f"python: {sys.version.split()[0]}")
     print(f"onnxruntime: {ort.__version__}")
-    print(f"available providers: {ort.get_available_providers()}")
-    print(f"selected providers: {choose_providers(args.provider)}")
-    print(f"nvidia-smi: {run_nvidia_smi()}")
+    available = ort.get_available_providers()
+    if "CUDAExecutionProvider" in available and hasattr(ort, "preload_dlls"):
+        ort.preload_dlls(directory="")
+    print(f"available providers: {available}")
+    print(f"selected providers: {choose_providers(args.provider, available=available)}")
+    if "CUDAExecutionProvider" in available:
+        print(f"nvidia-smi: {run_nvidia_smi()}")
 
     model_path = Path(args.model)
     if model_path.exists():

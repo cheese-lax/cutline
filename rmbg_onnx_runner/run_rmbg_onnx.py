@@ -12,7 +12,11 @@ def main() -> int:
     parser.add_argument("--input", default="sample_input.png", help="Input image. A sample is created if missing.")
     parser.add_argument("--output", default="sample_output_rgba.png", help="Output RGBA PNG path.")
     parser.add_argument("--mask", default="sample_mask.png", help="Output alpha mask PNG path.")
-    parser.add_argument("--provider", choices=["cuda", "auto", "cpu"], default="cuda")
+    parser.add_argument(
+        "--provider",
+        choices=["auto", "cuda", "coreml", "cpu"],
+        default="auto",
+    )
     parser.add_argument("--activation", choices=["auto", "sigmoid", "none"], default="auto")
     parser.add_argument(
         "--output-index",

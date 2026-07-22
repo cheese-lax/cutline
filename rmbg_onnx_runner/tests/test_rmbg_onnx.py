@@ -6,9 +6,9 @@ from pathlib import Path
 from unittest import mock
 
 import numpy as np
-from PIL import Image
-
+import pytest
 import rmbg_onnx
+from PIL import Image
 
 
 class FakeModelInput:
@@ -147,6 +147,41 @@ class RmbgOnnxTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "CUDAExecutionProvider"):
             rmbg_onnx.choose_providers("cuda", available=["CPUExecutionProvider"])
+
+    def test_auto_prefers_coreml_on_macos(self):
+        providers = rmbg_onnx.choose_providers(
+            "auto",
+            available=["CoreMLExecutionProvider", "CPUExecutionProvider"],
+            system="Darwin",
+        )
+
+        self.assertEqual(providers, ["CoreMLExecutionProvider", "CPUExecutionProvider"])
+
+    def test_auto_prefers_cuda_outside_macos(self):
+        providers = rmbg_onnx.choose_providers(
+            "auto",
+            available=["CUDAExecutionProvider", "CPUExecutionProvider"],
+            system="Windows",
+        )
+
+        self.assertEqual(providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+
+    def test_auto_falls_back_to_cpu(self):
+        providers = rmbg_onnx.choose_providers(
+            "auto",
+            available=["CPUExecutionProvider"],
+            system="Linux",
+        )
+
+        self.assertEqual(providers, ["CPUExecutionProvider"])
+
+    def test_explicit_coreml_requires_provider(self):
+        with pytest.raises(RuntimeError, match="CoreMLExecutionProvider"):
+            rmbg_onnx.choose_providers(
+                "coreml",
+                available=["CPUExecutionProvider"],
+                system="Darwin",
+            )
 
     def test_with_cuda_provider_options_preserves_provider_order(self):
         providers = rmbg_onnx.with_cuda_provider_options(

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import time
 import os
+import platform
 import site
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 from PIL import Image, ImageColor, ImageFilter
-
 
 RMBG_IMAGE_SIZE = (1024, 1024)
 RMBG_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -60,9 +60,12 @@ class RmbgSession:
     ) -> None:
         import onnxruntime as ort
 
-        self.dll_directory_handles = add_nvidia_dll_directories()
-        if hasattr(ort, "preload_dlls"):
-            ort.preload_dlls(directory="")
+        available_providers = ort.get_available_providers()
+        self.dll_directory_handles = []
+        if "CUDAExecutionProvider" in available_providers:
+            self.dll_directory_handles = add_nvidia_dll_directories()
+            if hasattr(ort, "preload_dlls"):
+                ort.preload_dlls(directory="")
 
         self.model_path = Path(model_path)
         self.activation = activation
@@ -227,25 +230,38 @@ def preprocess_image(
     return tensor.astype(np.float32)
 
 
-def choose_providers(provider: str, available: Iterable[str] | None = None) -> list[str]:
-    """Choose ONNX Runtime providers, preferring stable CUDA over TensorRT."""
+def choose_providers(
+    provider: str,
+    available: Iterable[str] | None = None,
+    system: str | None = None,
+) -> list[str]:
+    """Choose portable ONNX Runtime providers with a CPU fallback."""
     if available is None:
         import onnxruntime as ort
 
         available = ort.get_available_providers()
 
     available_set = set(available)
+    system_name = system or platform.system()
     if provider == "cpu":
         return ["CPUExecutionProvider"]
     if provider == "cuda":
         if "CUDAExecutionProvider" not in available_set:
             raise RuntimeError(f"CUDAExecutionProvider is not available: {sorted(available_set)}")
         return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    if provider == "coreml":
+        if "CoreMLExecutionProvider" not in available_set:
+            raise RuntimeError(
+                f"CoreMLExecutionProvider is not available: {sorted(available_set)}"
+            )
+        return ["CoreMLExecutionProvider", "CPUExecutionProvider"]
     if provider == "auto":
+        if system_name == "Darwin" and "CoreMLExecutionProvider" in available_set:
+            return ["CoreMLExecutionProvider", "CPUExecutionProvider"]
         if "CUDAExecutionProvider" in available_set:
             return ["CUDAExecutionProvider", "CPUExecutionProvider"]
         return ["CPUExecutionProvider"]
-    raise ValueError(f"Unsupported provider: {provider}")
+    raise ValueError("provider must be one of: auto, cuda, coreml, cpu")
 
 
 def with_cuda_provider_options(
