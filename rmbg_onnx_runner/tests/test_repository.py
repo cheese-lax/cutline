@@ -54,3 +54,16 @@ def test_public_docs_cover_install_security_and_model_license():
     assert "commercial" in notices.lower()
     assert "localhost" in security.lower()
     assert "MIT License" in license_text
+
+
+def test_ci_covers_supported_platforms_and_python_versions():
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    for runner in ["ubuntu-latest", "windows-latest", "macos-latest"]:
+        assert runner in workflow
+    for version in ["3.11", "3.12", "3.13"]:
+        assert version in workflow
+    assert "pytest" in workflow
+    assert "ruff check" in workflow
+    assert "web_app.py --help" in workflow
+    assert "Parser]::ParseFile" in workflow
