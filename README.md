@@ -118,3 +118,12 @@ python3 -m venv .venv
 ## 发布
 
 代码采用 [MIT License](LICENSE)。GitHub Release 只发布通过测试的源码标签，不附带模型、运行环境或用户输出。
+
+维护者先确认默认分支 CI 通过，再创建并推送语义化版本标签：
+
+```bash
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
+```
+
+`v*` 标签会触发源码发布工作流；工作流再次运行测试和 Ruff，并在两项都通过后创建带自动发布说明的 GitHub Release。发布前请确认标签指向预期提交，且仓库中没有模型权重、输出图片或本地环境文件。

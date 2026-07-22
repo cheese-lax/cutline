@@ -67,3 +67,14 @@ def test_ci_covers_supported_platforms_and_python_versions():
     assert "ruff check" in workflow
     assert "web_app.py --help" in workflow
     assert "Parser]::ParseFile" in workflow
+
+
+def test_release_workflow_verifies_source_before_publishing():
+    workflow = (ROOT / ".github" / "workflows" / "release-source.yml").read_text(encoding="utf-8")
+
+    assert '"v*"' in workflow
+    assert "contents: write" in workflow
+    assert "pytest" in workflow
+    assert "ruff check" in workflow
+    assert "gh release create" in workflow
+    assert "--verify-tag" in workflow
