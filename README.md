@@ -13,8 +13,11 @@
 ## 使用前准备
 
 1. 安装 Python 3.11、3.12 或 3.13。
-2. 下载你有权使用的兼容 ONNX 模型，并在项目根目录命名为 `model.onnx`。
-3. 查看 [第三方与模型授权说明](THIRD_PARTY_NOTICES.md)。本仓库不包含模型权重。
+2. 从以下任一模型页面下载你有权使用的 RMBG-2.0 模型：
+   - Hugging Face：<https://huggingface.co/briaai/RMBG-2.0>
+   - ModelScope 魔搭：<https://www.modelscope.cn/models/AI-ModelScope/RMBG-2.0>
+3. 准备与本项目兼容的 ONNX 文件，并在项目根目录命名为 `model.onnx`。
+4. 查看 [第三方与模型授权说明](THIRD_PARTY_NOTICES.md)。本仓库不包含模型权重，下载和使用模型时应遵守其许可条款。
 
 ## Windows
 

@@ -50,6 +50,8 @@ def test_public_docs_cover_install_security_and_model_license():
 
     for required_text in ["Windows", "macOS", "Linux", "127.0.0.1", "model.onnx"]:
         assert required_text in readme
+    assert "https://huggingface.co/briaai/RMBG-2.0" in readme
+    assert "https://www.modelscope.cn/models/AI-ModelScope/RMBG-2.0" in readme
     assert "CC BY-NC 4.0" in notices
     assert "commercial" in notices.lower()
     assert "localhost" in security.lower()
