@@ -1,6 +1,5 @@
-from pathlib import Path
 import unittest
-
+from pathlib import Path
 
 RUNNER_DIR = Path(__file__).resolve().parents[1]
 
@@ -78,10 +77,22 @@ class WebAssetTests(unittest.TestCase):
         self.assertIn("打开本次结果文件夹", markup)
         self.assertIn("currentRunId", script)
         self.assertIn("function openCurrentRunFolder", script)
-        self.assertIn("/api/open-output?runId=", script)
+        self.assertIn('fetch("/api/open-output"', script)
         self.assertIn("function loadRecentTask", script)
         self.assertIn("/api/tasks/recent?limit=1", script)
         self.assertIn("inputUrl", script)
+
+    def test_frontend_uses_dynamic_provider_badge_and_post_side_effects(self):
+        markup = (RUNNER_DIR / "web" / "index.html").read_text(encoding="utf-8")
+        script = (RUNNER_DIR / "web" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="providerBadge"', markup)
+        self.assertNotIn(">GPU/CUDA<", markup)
+        self.assertIn('method: "POST"', script)
+        self.assertIn('headers: { "Content-Type": "application/json" }', script)
+        self.assertIn("JSON.stringify({ path: item.outputPath })", script)
+        self.assertIn("JSON.stringify({ runId: state.currentRunId })", script)
+        self.assertIn("本地服务访问令牌已失效", script)
 
 
 if __name__ == "__main__":

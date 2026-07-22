@@ -16,6 +16,7 @@ const state = {
 
 const els = {
   statusText: document.querySelector("#statusText"),
+  providerBadge: document.querySelector("#providerBadge"),
   openOutputBtn: document.querySelector("#openOutputBtn"),
   openOutputBtnBottom: document.querySelector("#openOutputBtnBottom"),
   dropZone: document.querySelector("#dropZone"),
@@ -506,6 +507,8 @@ async function processFiles() {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
+      if (response.status === 403) throw new Error("本地服务访问令牌已失效，请重新运行启动脚本。");
+      if (response.status === 413) throw new Error(data.error || "上传内容超过服务限制。");
       throw new Error(data.error || "处理失败");
     }
     const contentType = response.headers.get("Content-Type") || "";
@@ -528,7 +531,11 @@ async function processFiles() {
 async function openResultFolder(item) {
   if (!item.ok || !item.outputPath) return;
   try {
-    const response = await fetch(`/api/open-result?path=${encodeURIComponent(item.outputPath)}`);
+    const response = await fetch("/api/open-result", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: item.outputPath }),
+    });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "无法打开结果文件夹");
   } catch (error) {
@@ -539,7 +546,11 @@ async function openResultFolder(item) {
 async function openCurrentRunFolder() {
   if (!state.currentRunId) return;
   try {
-    const response = await fetch(`/api/open-output?runId=${encodeURIComponent(state.currentRunId)}`);
+    const response = await fetch("/api/open-output", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ runId: state.currentRunId }),
+    });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "无法打开本次结果文件夹");
   } catch (error) {
@@ -553,6 +564,7 @@ async function loadStatus() {
     const data = await response.json();
     const active = Array.isArray(data.providerActive) ? data.providerActive.join(" / ") : "CUDA";
     els.statusText.textContent = `模型已加载，${active}`;
+    els.providerBadge.textContent = active;
     els.statusText.classList.add("ready");
   } catch (error) {
     els.statusText.textContent = "服务未就绪";
