@@ -14,7 +14,15 @@
 
 **Cutline**（网站名：**Cutline 本地抠图**）在你的电脑上运行兼容 ONNX 的背景移除模型。图片、模型与输出始终留在本机；浏览器只是本地操作界面。
 
-![Cutline 本地抠图界面](docs/assets/cutline-ui.png)
+## 界面预览
+
+### 亮色主题
+
+![Cutline 本地抠图亮色界面](docs/assets/cutline-ui-light.jpg)
+
+### 暗色主题
+
+![Cutline 本地抠图暗色界面](docs/assets/cutline-ui-dark.jpg)
 
 ## 为什么选择 Cutline
 
