@@ -23,7 +23,8 @@ NVIDIA_DLL_PACKAGES = (
     "curand",
     "nvjitlink",
 )
-SUPPORTED_OUTPUT_FORMATS = {"png", "webp"}
+SUPPORTED_OUTPUT_FORMATS = {"png", "webp", "jpg", "avif"}
+OUTPUT_FORMAT_ALIASES = {"jpeg": "jpg"}
 SUPPORTED_PROCESSING_MODES = {"rmbg", "line_art"}
 
 
@@ -153,7 +154,12 @@ class RmbgSession:
                 )
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        save_output_image(output_image, output_path, normalized_output_format)
+        save_output_image(
+            output_image,
+            output_path,
+            normalized_output_format,
+            background_color=background_color,
+        )
         if mask_output_path:
             mask_output_path.parent.mkdir(parents=True, exist_ok=True)
             mask.save(mask_output_path)
@@ -316,8 +322,9 @@ def postprocess_mask(
 
 def normalize_output_format(output_format: str) -> str:
     normalized = (output_format or "png").strip().lower()
+    normalized = OUTPUT_FORMAT_ALIASES.get(normalized, normalized)
     if normalized not in SUPPORTED_OUTPUT_FORMATS:
-        raise ValueError("output format must be one of: png, webp")
+        raise ValueError("output format must be one of: png, webp, jpg, avif")
     return normalized
 
 
@@ -418,10 +425,29 @@ def build_output_image(
     return background.convert("RGB")
 
 
-def save_output_image(image: Image.Image, output_path: str | Path, output_format: str = "png") -> None:
+def save_output_image(
+    image: Image.Image,
+    output_path: str | Path,
+    output_format: str = "png",
+    background_color: str = "#FFFFFF",
+) -> None:
     normalized_output_format = normalize_output_format(output_format)
     if normalized_output_format == "webp":
         image.save(output_path, format="WEBP", lossless=True, quality=95, method=6)
+        return
+    if normalized_output_format == "jpg":
+        rgba = image.convert("RGBA")
+        background = Image.new("RGBA", rgba.size, normalize_background_color(background_color) + (255,))
+        background.alpha_composite(rgba)
+        background.convert("RGB").save(
+            output_path,
+            format="JPEG",
+            quality=95,
+            subsampling=0,
+        )
+        return
+    if normalized_output_format == "avif":
+        image.save(output_path, format="AVIF", quality=95)
         return
     image.save(output_path, format="PNG")
 

@@ -20,6 +20,13 @@ def test_platform_scripts_exist_and_use_local_venv():
         assert "web_app.py" in text or name.startswith("install_")
 
 
+def test_start_scripts_use_models_directory_without_fixed_model_name():
+    for name in ["start_windows.ps1", "start_macos.sh", "start_linux.sh"]:
+        text = (ROOT / "scripts" / name).read_text(encoding="utf-8")
+        assert "models" in text
+        assert "model.onnx" not in text
+
+
 def test_platform_install_scripts_reference_matching_requirements():
     windows = (ROOT / "scripts" / "install_windows.ps1").read_text(encoding="utf-8")
     macos = (ROOT / "scripts" / "install_macos.sh").read_text(encoding="utf-8")
@@ -48,9 +55,16 @@ def test_public_docs_cover_install_security_and_model_license():
     security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
 
-    for required_text in ["Windows", "macOS", "Linux", "127.0.0.1", "model.onnx"]:
+    for required_text in ["Windows", "macOS", "Linux", "127.0.0.1", "models/"]:
         assert required_text in readme
+    assert "浏览器" in readme and "模型" in readme and "自动恢复" in readme
+    assert "输入支持 JPG、PNG、WebP、静态 AVIF、BMP、单页 TIFF、ICO 和 TGA" in readme
     assert "https://huggingface.co/briaai/RMBG-2.0" in readme
+    assert "https://huggingface.co/briaai/RMBG-2.0/tree/main/onnx" in readme
+    assert "独立推理进程" in readme
+    assert "Apple CoreML" in readme
+    assert "--disable-mem-pattern" in readme
+    assert "故障时可用内存" in readme
     assert "https://www.modelscope.cn/models/AI-ModelScope/RMBG-2.0" in readme
     assert "CC BY-NC 4.0" in notices
     assert "commercial" in notices.lower()

@@ -251,9 +251,38 @@ class RmbgOnnxTests(unittest.TestCase):
 
     def test_normalize_output_format_rejects_unknown_values(self):
         self.assertEqual(rmbg_onnx.normalize_output_format("WEBP"), "webp")
+        self.assertEqual(rmbg_onnx.normalize_output_format("JPEG"), "jpg")
+        self.assertEqual(rmbg_onnx.normalize_output_format("AVIF"), "avif")
 
         with self.assertRaisesRegex(ValueError, "output format"):
-            rmbg_onnx.normalize_output_format("jpg")
+            rmbg_onnx.normalize_output_format("gif")
+
+    def test_save_jpg_flattens_transparency_to_selected_background(self):
+        image = Image.new("RGBA", (1, 1), (255, 0, 0, 0))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "output.jpg"
+            rmbg_onnx.save_output_image(
+                image,
+                output_path,
+                output_format="jpg",
+                background_color="#123456",
+            )
+            with Image.open(output_path) as output:
+                pixel = output.convert("RGB").getpixel((0, 0))
+
+        self.assertTrue(all(abs(actual - expected) <= 3 for actual, expected in zip(pixel, (18, 52, 86))))
+
+    def test_save_avif_preserves_transparency(self):
+        image = Image.new("RGBA", (1, 1), (12, 34, 56, 0))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "output.avif"
+            rmbg_onnx.save_output_image(image, output_path, output_format="avif")
+            with Image.open(output_path) as output:
+                alpha = output.convert("RGBA").getpixel((0, 0))[3]
+
+        self.assertEqual(alpha, 0)
 
 
 if __name__ == "__main__":

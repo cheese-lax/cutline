@@ -6,6 +6,9 @@ const state = {
   selectedObjectUrl: "",
   currentRunId: "",
   currentOutputDir: "",
+  activeModel: "",
+  historyTasks: [],
+  selectedHistoryRunIds: new Set(),
   progress: {
     total: 0,
     processed: 0,
@@ -16,10 +19,17 @@ const state = {
 
 const els = {
   statusText: document.querySelector("#statusText"),
-  providerBadge: document.querySelector("#providerBadge"),
+  modelSelect: document.querySelector("#modelSelect"),
+  providerSelect: document.querySelector("#providerSelect"),
+  modelHelp: document.querySelector("#modelHelp"),
+  modelsDirectory: document.querySelector("#modelsDirectory"),
+  runtimeToast: document.querySelector("#runtimeToast"),
+  themeToggleBtn: document.querySelector("#themeToggleBtn"),
+  themeLabel: document.querySelector("#themeLabel"),
   openOutputBtn: document.querySelector("#openOutputBtn"),
   openOutputBtnBottom: document.querySelector("#openOutputBtnBottom"),
   dropZone: document.querySelector("#dropZone"),
+  originalUploadZone: document.querySelector("#originalUploadZone"),
   chooseSingleBtn: document.querySelector("#chooseSingleBtn"),
   chooseFilesBtn: document.querySelector("#chooseFilesBtn"),
   chooseFolderBtn: document.querySelector("#chooseFolderBtn"),
@@ -37,11 +47,19 @@ const els = {
   resultGrid: document.querySelector("#resultGrid"),
   progressBar: document.querySelector("#progressBar span"),
   clearListBtn: document.querySelector("#clearListBtn"),
+  historySummary: document.querySelector("#historySummary"),
+  historyFeedback: document.querySelector("#historyFeedback"),
+  historyTaskList: document.querySelector("#historyTaskList"),
+  refreshHistoryBtn: document.querySelector("#refreshHistoryBtn"),
+  selectAllHistory: document.querySelector("#selectAllHistory"),
+  deleteSelectedTasksBtn: document.querySelector("#deleteSelectedTasksBtn"),
+  cleanupHistoryBtn: document.querySelector("#cleanupHistoryBtn"),
   totalCount: document.querySelector("#totalCount"),
   processingCount: document.querySelector("#processingCount"),
   completedCount: document.querySelector("#completedCount"),
   pendingCount: document.querySelector("#pendingCount"),
   edgeOptimize: document.querySelector("#edgeOptimize"),
+  edgeOptimizeHint: document.querySelector("#edgeOptimizeHint"),
   transparentBackground: document.querySelector("#transparentBackground"),
   backgroundColor: document.querySelector("#backgroundColor"),
   backgroundColorText: document.querySelector("#backgroundColorText"),
@@ -52,8 +70,65 @@ const els = {
   formatMeta: document.querySelector("#formatMeta"),
 };
 
+const preferredThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+let runtimeToastTimer;
+const supportedImageExtensionPattern =
+  /\.(apng|avifs?|bmp|dds|dib|gif|icb|ico|j2[ck]|jfif|jp[2cefx]|jpe?g|p[bgfnp]m|png|psd|qoi|tga|tiff?|vda|vst|webp)$/i;
+const runtimeStateText = {
+  no_model: "未找到可用模型",
+  loading: "正在加载模型…",
+  ready: "服务已就绪",
+  processing: "正在处理图片…",
+  switching: "正在切换模型…",
+  error: "模型运行环境异常",
+  stopped: "模型服务已停止",
+};
+
+function storedTheme() {
+  try {
+    const theme = localStorage.getItem("koutu-theme");
+    return theme === "dark" || theme === "light" ? theme : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function applyTheme(theme, persist = false) {
+  const normalized = theme === "dark" ? "dark" : "light";
+  const dark = normalized === "dark";
+  document.documentElement.dataset.theme = normalized;
+  els.themeToggleBtn.setAttribute("aria-pressed", String(dark));
+  els.themeToggleBtn.setAttribute("aria-label", dark ? "切换到浅色主题" : "切换到深色主题");
+  els.themeToggleBtn.title = dark ? "切换到浅色主题" : "切换到深色主题";
+  els.themeLabel.textContent = dark ? "浅色模式" : "深色模式";
+  if (persist) {
+    try {
+      localStorage.setItem("koutu-theme", normalized);
+    } catch (error) {
+      // 浏览器禁用本地存储时仍保留当前会话主题。
+    }
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme;
+  applyTheme(current === "dark" ? "light" : "dark", true);
+}
+
+function initialTheme() {
+  return storedTheme() || (preferredThemeQuery.matches ? "dark" : "light");
+}
+
 function supported(file) {
-  return /^image\//.test(file.type) || /\.(jpe?g|png|webp|bmp|tiff?)$/i.test(file.name);
+  return /^image\//.test(file.type) || supportedImageExtensionPattern.test(file.name);
+}
+
+function formatBytes(value) {
+  const bytes = Number(value) || 0;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
 function makeEntry(file, path) {
@@ -71,6 +146,10 @@ function selectedOutputFormat() {
   return document.querySelector('input[name="outputFormat"]:checked')?.value || "png";
 }
 
+function outputSupportsTransparency(outputFormat) {
+  return outputFormat !== "jpg";
+}
+
 function selectedProcessingMode() {
   return document.querySelector('input[name="processingMode"]:checked')?.value || "rmbg";
 }
@@ -85,17 +164,36 @@ function normalizeHex(value) {
 
 function currentSettings() {
   const processingMode = selectedProcessingMode();
+  const outputFormat = selectedOutputFormat();
+  const supportsTransparency = outputSupportsTransparency(outputFormat);
   return {
     processingMode,
-    outputFormat: selectedOutputFormat(),
+    outputFormat,
     edgeOptimize: els.edgeOptimize.checked,
-    transparentBackground: processingMode === "line_art" || els.transparentBackground.checked,
+    transparentBackground:
+      supportsTransparency && (processingMode === "line_art" || els.transparentBackground.checked),
     backgroundColor: normalizeHex(els.backgroundColorText.value || els.backgroundColor.value),
   };
 }
 
 function setFiles(files) {
   setEntries(Array.from(files).map((file) => makeEntry(file)));
+}
+
+function clipboardImageFiles(clipboardData) {
+  const itemFiles = Array.from(clipboardData?.items || [])
+    .filter((item) => item.kind === "file" && /^image\//.test(item.type))
+    .map((item) => item.getAsFile())
+    .filter(Boolean);
+  const files = itemFiles.length > 0 ? itemFiles : Array.from(clipboardData?.files || []);
+  return files.filter(supported);
+}
+
+function handleImagePaste(event) {
+  const files = clipboardImageFiles(event.clipboardData);
+  if (files.length === 0) return;
+  event.preventDefault();
+  setFiles(files);
 }
 
 function setEntries(entries) {
@@ -114,7 +212,7 @@ function setEntries(entries) {
   state.currentOutputDir = "";
   state.progress = { total: state.files.length, processed: 0, success: 0, failed: 0 };
   updateFormatMeta();
-  els.quotaText.textContent = `当前已选择 ${state.files.length} 张图片`;
+  els.quotaText.textContent = state.files.length ? `当前已选择 ${state.files.length} 张图片` : "";
   setProgress(0);
   renderSelection();
   renderQueue();
@@ -124,6 +222,11 @@ function renderSelection() {
   const hasFiles = state.files.length > 0;
   els.processBtn.disabled = !hasFiles || state.processing;
   els.rerunBtn.disabled = !hasFiles || state.processing;
+  els.modelSelect.disabled =
+    state.processing ||
+    els.modelSelect.dataset.switching === "true" ||
+    els.modelSelect.options.length === 0;
+  els.providerSelect.disabled = els.modelSelect.disabled;
   updateTaskActions();
 }
 
@@ -168,6 +271,7 @@ function updateOriginalPreview() {
   if (!entry) {
     els.originalPreview.removeAttribute("src");
     els.originalPreview.removeAttribute("alt");
+    els.originalPreview.classList.remove("is-revealed");
     els.fileNameMeta.textContent = "-";
     els.resolutionMeta.textContent = "-";
     return;
@@ -187,6 +291,7 @@ function updateOriginalPreview() {
   els.resolutionMeta.textContent = "-";
   els.originalPreview.onload = () => {
     els.resolutionMeta.textContent = `${els.originalPreview.naturalWidth} x ${els.originalPreview.naturalHeight}`;
+    revealPreview(els.originalPreview);
   };
   els.originalPreview.src = sourceUrl;
   els.originalPreview.alt = relativeName(entry);
@@ -196,18 +301,26 @@ function updateOriginalPreview() {
 function updateFormatMeta() {
   const settings = currentSettings();
   const lineArtMode = settings.processingMode === "line_art";
+  const supportsTransparency = outputSupportsTransparency(settings.outputFormat);
   const background = settings.transparentBackground ? "透明背景" : `${settings.backgroundColor} 背景`;
-  els.formatMeta.textContent = lineArtMode
-    ? `${settings.outputFormat.toUpperCase()}（线稿透明背景）`
-    : `${settings.outputFormat.toUpperCase()}（${background}）`;
+  els.formatMeta.textContent = `${settings.outputFormat.toUpperCase()}（${
+    lineArtMode && settings.transparentBackground ? "线稿透明背景" : background
+  }）`;
   els.edgeOptimize.disabled = lineArtMode;
-  els.transparentBackground.disabled = lineArtMode;
-  els.backgroundColor.disabled = lineArtMode || settings.transparentBackground;
-  els.backgroundColorText.disabled = lineArtMode || settings.transparentBackground;
-  els.processingModeHint.textContent = lineArtMode
-    ? "自动识别背景色并按灰度差生成透明度，不使用抠图模型。背景区域将变为透明，线条颜色与细节会保留。"
-    : "使用 RMBG 模型识别主体并移除背景";
-  els.backgroundHint.textContent = lineArtMode
+  els.edgeOptimizeHint.hidden = lineArtMode;
+  els.transparentBackground.disabled = lineArtMode || !supportsTransparency;
+  const backgroundDisabled = supportsTransparency && (lineArtMode || settings.transparentBackground);
+  els.backgroundColor.disabled = backgroundDisabled;
+  els.backgroundColorText.disabled = backgroundDisabled;
+  els.processingModeHint.hidden = !lineArtMode;
+  els.processingModeHint.textContent = !lineArtMode
+    ? ""
+    : supportsTransparency
+    ? "不使用模型，适合背景单一的线稿或签名图"
+    : "不使用模型，适合背景单一的线稿或签名图；JPG 会按所选背景色合成。";
+  els.backgroundHint.textContent = !supportsTransparency
+    ? "JPG 不支持透明通道，将自动合成为所选背景色"
+    : lineArtMode
     ? "线稿模式始终输出透明背景"
     : settings.transparentBackground
     ? "仅在关闭透明背景时生效"
@@ -325,7 +438,30 @@ function createResultCard(item, index) {
     openResultFolder(item);
   });
   card.appendChild(openButton);
+
+  if (!item.ok) {
+    const failureDetail = document.createElement("div");
+    failureDetail.className = "failure-detail";
+    failureDetail.textContent = formatFailureDetail(item);
+    card.appendChild(failureDetail);
+  }
   return card;
+}
+
+function formatFailureDetail(item) {
+  const error = item.error || {};
+  return [
+    `失败阶段：${error.stage || "未知"}`,
+    `错误原因：${error.detail || error.reason || item.message || "未提供具体错误"}`,
+    `处理建议：${error.suggestion || "请重试；若持续失败，请查看服务端日志。"}`,
+    `错误码：${error.code || "PROCESS_FAILED"}`,
+  ].join("\n");
+}
+
+function completedBatchMessage(success, failed, outputDir) {
+  const firstFailure = state.results.find((item) => item && !item.ok);
+  const failure = firstFailure ? `；${formatFailureDetail(firstFailure).replaceAll("\n", "；")}` : "";
+  return `完成 ${success} 张，失败 ${failed} 张；结果目录：${outputDir}${failure}`;
 }
 
 function selectResult(index) {
@@ -343,6 +479,7 @@ function appendResult(item, queueIndex = state.results.length) {
 }
 
 function showResultPreview(item) {
+  els.resultPreview.onload = () => revealPreview(els.resultPreview);
   els.resultPreview.src = item.outputUrl;
   els.resultPreview.alt = item.outputName || item.inputName;
   els.downloadFirstBtn.href = item.outputUrl;
@@ -353,8 +490,16 @@ function showResultPreview(item) {
 function clearResultPreview() {
   els.resultPreview.removeAttribute("src");
   els.resultPreview.removeAttribute("alt");
+  els.resultPreview.classList.remove("is-revealed");
   els.downloadFirstBtn.href = "#";
   els.downloadFirstBtn.classList.add("disabled");
+}
+
+function revealPreview(image) {
+  image.classList.remove("is-revealed");
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => image.classList.add("is-revealed"));
+  });
 }
 
 function syncSelectedPreview() {
@@ -382,7 +527,7 @@ function applyProcessEvent(event) {
       success: 0,
       failed: 0,
     };
-    els.resultTitle.textContent = "批量任务";
+    els.resultTitle.textContent = "当前任务";
     els.quotaText.textContent = `开始处理 ${state.progress.total} 张图片`;
     els.processBtn.textContent = state.progress.total > 0 ? `正在抠图 0/${state.progress.total}` : "正在抠图...";
     setProgress(0);
@@ -420,7 +565,7 @@ function applyProcessEvent(event) {
       failed: event.failed || 0,
     };
     setProgress(100);
-    els.quotaText.textContent = `完成 ${event.success} 张，失败 ${event.failed} 张；结果目录：${event.outputDir}`;
+    els.quotaText.textContent = completedBatchMessage(event.success, event.failed, event.outputDir);
     els.processBtn.textContent = "正在收尾...";
     renderQueue();
     updateTaskActions();
@@ -464,7 +609,7 @@ async function readProcessJson(response) {
     failed: data.failed || 0,
   };
   setProgress(100);
-  els.quotaText.textContent = `完成 ${data.success} 张，失败 ${data.failed} 张；结果目录：${data.outputDir}`;
+  els.quotaText.textContent = completedBatchMessage(data.success, data.failed, data.outputDir);
   renderQueue();
   updateTaskActions();
 }
@@ -482,6 +627,7 @@ function resetProcessingView() {
 async function processFiles() {
   if (state.processing || state.files.length === 0) return;
   state.processing = true;
+  document.body.classList.add("is-processing");
   renderSelection();
   els.processBtn.textContent = "正在上传...";
   els.quotaText.textContent = `正在提交 ${state.files.length} 张图片`;
@@ -509,7 +655,9 @@ async function processFiles() {
       const data = await response.json().catch(() => ({}));
       if (response.status === 403) throw new Error("本地服务访问令牌已失效，请重新运行启动脚本。");
       if (response.status === 413) throw new Error(data.error || "上传内容超过服务限制。");
-      throw new Error(data.error || "处理失败");
+      const detail = data.detail ? `（${data.detail}）` : "";
+      const suggestion = data.suggestion ? ` ${data.suggestion}` : " 请查看服务端日志后重试。";
+      throw new Error(`请求失败（HTTP ${response.status}）：${data.error || "服务未返回具体原因"}${detail}${suggestion}`);
     }
     const contentType = response.headers.get("Content-Type") || "";
     if (response.body && contentType.includes("application/x-ndjson")) {
@@ -522,9 +670,11 @@ async function processFiles() {
     setProgress(0);
   } finally {
     state.processing = false;
+    document.body.classList.remove("is-processing");
     els.processBtn.textContent = "开始抠图";
     renderSelection();
     renderQueue();
+    await loadHistorySummary();
   }
 }
 
@@ -561,14 +711,311 @@ async function openCurrentRunFolder() {
 async function loadStatus() {
   try {
     const response = await fetch("/api/status");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    const active = Array.isArray(data.providerActive) ? data.providerActive.join(" / ") : "CUDA";
-    els.statusText.textContent = `模型已加载，${active}`;
-    els.providerBadge.textContent = active;
-    els.statusText.classList.add("ready");
+    els.statusText.textContent = runtimeStateText[data.runtimeState] || "服务已就绪";
+    els.statusText.classList.toggle("ready", data.runtimeState === "ready");
+    if (data.modelsDir) els.modelsDirectory.textContent = data.modelsDir;
   } catch (error) {
     els.statusText.textContent = "服务未就绪";
   }
+}
+
+function showRuntimeToast(message) {
+  window.clearTimeout(runtimeToastTimer);
+  els.runtimeToast.textContent = message;
+  els.runtimeToast.hidden = !message;
+  if (!message) return;
+  runtimeToastTimer = window.setTimeout(() => {
+    els.runtimeToast.hidden = true;
+    els.runtimeToast.textContent = "";
+  }, 3000);
+}
+
+async function selectRuntime() {
+  const identifier = els.modelSelect.value;
+  const provider = els.providerSelect.value;
+  if (!identifier) return false;
+  const previous = state.activeModel;
+  els.modelSelect.dataset.switching = "true";
+  els.modelSelect.disabled = true;
+  els.statusText.textContent = "模型加载中…";
+  let response;
+  try {
+    response = await fetch("/api/runtime/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: identifier, provider }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = data.detail ? `（${data.detail}）` : "";
+      throw new Error(`${data.error || "模型切换失败"}${detail}`);
+    }
+    state.activeModel = data.active;
+    els.modelSelect.value = data.active;
+    els.statusText.textContent = "服务已就绪";
+    els.statusText.classList.add("ready");
+    showRuntimeToast(`模型切换成功：${data.active} · ${provider} · ${Number(data.loadSeconds || 0).toFixed(3)} 秒`);
+    return true;
+  } catch (error) {
+    els.modelSelect.value = previous;
+    els.statusText.textContent = "模型切换失败";
+    els.statusText.classList.remove("ready");
+    showRuntimeToast(response?.status === 409 ? "当前有任务正在处理，请完成后再切换模型或推理方式。" : error.message);
+    return false;
+  } finally {
+    delete els.modelSelect.dataset.switching;
+    els.modelSelect.disabled = state.processing || els.modelSelect.options.length === 0;
+    els.providerSelect.disabled = els.modelSelect.disabled;
+  }
+}
+
+async function loadRuntimeControls() {
+  try {
+    const response = await fetch("/api/models");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    const models = Array.isArray(data.models) ? data.models : [];
+    const providersResponse = await fetch("/api/providers");
+    const providersData = await providersResponse.json().catch(() => ({}));
+    els.modelSelect.replaceChildren();
+    for (const model of models) {
+      const option = document.createElement("option");
+      option.value = model.id;
+      option.textContent = model.id;
+      els.modelSelect.appendChild(option);
+    }
+    if (models.length === 0) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "models 文件夹中未找到 ONNX 模型";
+      els.modelSelect.appendChild(option);
+      els.modelSelect.disabled = true;
+      els.modelHelp.hidden = false;
+      return;
+    }
+    state.activeModel = data.active || models[0].id;
+    els.modelSelect.value = state.activeModel;
+    els.providerSelect.replaceChildren();
+    for (const provider of providersData.providers || []) {
+      const option = document.createElement("option");
+      option.value = provider.id;
+      option.textContent = provider.label;
+      els.providerSelect.appendChild(option);
+    }
+    els.providerSelect.value = providersData.selected || "auto";
+    els.modelSelect.disabled = false;
+    els.providerSelect.disabled = false;
+    els.modelHelp.hidden = true;
+  } catch (error) {
+    els.modelSelect.replaceChildren();
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "无法读取模型列表";
+    els.modelSelect.appendChild(option);
+    els.modelSelect.disabled = true;
+    els.quotaText.textContent = error.message;
+  }
+}
+
+function historySummaryUrl(olderThanDays = 0) {
+  let url = `/api/tasks/history?protectRunId=${encodeURIComponent(state.currentRunId)}`;
+  if (olderThanDays) url += `&olderThanDays=${olderThanDays}`;
+  return url;
+}
+
+function setHistoryFeedback(message, tone = "neutral") {
+  els.historyFeedback.textContent = message;
+  els.historyFeedback.hidden = !message;
+  els.historyFeedback.dataset.tone = tone;
+}
+
+function historyStatusText(task) {
+  if (task.status === "running") return "进行中";
+  if (task.failed > 0) return `完成，${task.failed} 个失败`;
+  return "已完成";
+}
+
+function updateHistorySelection() {
+  const deletable = state.historyTasks.filter((task) => task.canDelete);
+  const selected = deletable.filter((task) => state.selectedHistoryRunIds.has(task.runId));
+  els.selectAllHistory.disabled = deletable.length === 0;
+  els.selectAllHistory.checked = deletable.length > 0 && selected.length === deletable.length;
+  els.selectAllHistory.indeterminate = selected.length > 0 && selected.length < deletable.length;
+  els.deleteSelectedTasksBtn.disabled = selected.length === 0;
+  els.deleteSelectedTasksBtn.textContent = selected.length ? `删除所选 (${selected.length})` : "删除所选";
+}
+
+function renderHistoryTasks(tasks) {
+  state.historyTasks = Array.isArray(tasks) ? tasks : [];
+  const available = new Set(state.historyTasks.filter((task) => task.canDelete).map((task) => task.runId));
+  state.selectedHistoryRunIds = new Set(
+    [...state.selectedHistoryRunIds].filter((runId) => available.has(runId)),
+  );
+  els.historyTaskList.replaceChildren();
+  if (state.historyTasks.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "history-task-empty";
+    empty.textContent = "暂无历史任务";
+    els.historyTaskList.appendChild(empty);
+    updateHistorySelection();
+    return;
+  }
+
+  for (const task of state.historyTasks) {
+    const card = document.createElement("article");
+    card.className = "history-task-card";
+    card.classList.toggle("is-current", task.runId === state.currentRunId);
+
+    const check = document.createElement("input");
+    check.className = "history-task-check";
+    check.type = "checkbox";
+    check.disabled = !task.canDelete;
+    check.checked = state.selectedHistoryRunIds.has(task.runId);
+    check.setAttribute("aria-label", `选择任务 ${task.runId}`);
+    check.addEventListener("change", () => {
+      if (check.checked) state.selectedHistoryRunIds.add(task.runId);
+      else state.selectedHistoryRunIds.delete(task.runId);
+      updateHistorySelection();
+    });
+
+    const info = document.createElement("div");
+    info.className = "history-task-info";
+    const title = document.createElement("strong");
+    title.textContent = task.createdAt || task.runId;
+    title.title = task.runId;
+    const meta = document.createElement("span");
+    meta.textContent =
+      `${historyStatusText(task)} · ${task.total || 0} 张 · ${formatBytes(task.sizeBytes)}` +
+      (task.runId === state.currentRunId ? " · 当前查看" : "");
+    info.append(title, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "history-task-actions";
+    const viewButton = document.createElement("button");
+    viewButton.type = "button";
+    viewButton.textContent = "查看";
+    viewButton.addEventListener("click", () => viewHistoryTask(task.runId));
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "delete-task";
+    deleteButton.textContent = "删除";
+    deleteButton.disabled = !task.canDelete;
+    deleteButton.title = task.canDelete ? "删除这个历史任务" : "当前或运行中任务不可删除";
+    deleteButton.addEventListener("click", () => deleteHistoryRuns([task.runId]));
+    actions.append(viewButton, deleteButton);
+    card.append(check, info, actions);
+    els.historyTaskList.appendChild(card);
+  }
+  updateHistorySelection();
+}
+
+function renderHistorySummary(data) {
+  els.historySummary.textContent = `${data.totalTasks || 0} 个任务 · ${formatBytes(data.totalBytes)}`;
+  renderHistoryTasks(data.tasks || []);
+}
+
+async function loadHistorySummary() {
+  try {
+    const response = await fetch(historySummaryUrl());
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    renderHistorySummary(await response.json());
+  } catch (error) {
+    els.historySummary.textContent = "无法读取历史结果统计";
+    setHistoryFeedback(`加载历史任务失败：${error.message}`, "error");
+  }
+}
+
+async function viewHistoryTask(runId) {
+  try {
+    setHistoryFeedback("正在加载任务详情…", "working");
+    const response = await fetch(`/api/tasks/${encodeURIComponent(runId)}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "任务详情加载失败");
+    restoreTask(data.task);
+    els.resultTitle.textContent = "已选历史任务";
+    setHistoryFeedback(`已加载任务 ${runId}。`, "success");
+    await loadHistorySummary();
+  } catch (error) {
+    setHistoryFeedback(`查看失败：${error.message}`, "error");
+  }
+}
+
+async function deleteHistoryRuns(runIds) {
+  if (!runIds.length) return;
+  const confirmed = window.confirm(`将永久删除 ${runIds.length} 个历史任务，是否继续？`);
+  if (!confirmed) {
+    setHistoryFeedback("已取消删除。", "neutral");
+    return;
+  }
+  try {
+    setHistoryFeedback(`正在删除 ${runIds.length} 个任务…`, "working");
+    const response = await fetch("/api/tasks/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: true, runIds, protectRunId: state.currentRunId }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "删除历史任务失败");
+    state.selectedHistoryRunIds.clear();
+    setHistoryFeedback(
+      `已删除 ${result.deletedTasks} 个任务，释放 ${formatBytes(result.freedBytes)}。`,
+      "success",
+    );
+    await loadHistorySummary();
+  } catch (error) {
+    setHistoryFeedback(`删除失败：${error.message}`, "error");
+  }
+}
+
+function deleteSelectedTasks() {
+  return deleteHistoryRuns([...state.selectedHistoryRunIds]);
+}
+
+async function quickCleanupHistory(days) {
+  try {
+    setHistoryFeedback(`正在检查 ${days} 天前的历史任务…`, "working");
+    const previewResponse = await fetch(historySummaryUrl(days));
+    const preview = await previewResponse.json();
+    if (!previewResponse.ok) throw new Error(preview.error || "无法预览清理结果");
+    if (!preview.cleanupTasks) {
+      setHistoryFeedback(`没有 ${days} 天前的可清理任务。`, "success");
+      return;
+    }
+    const confirmed = window.confirm(
+      `将删除 ${preview.cleanupTasks} 个 ${days} 天前的任务，` +
+      `预计释放 ${formatBytes(preview.cleanupBytes)}。是否继续？`,
+    );
+    if (!confirmed) {
+      setHistoryFeedback("已取消一键清理。", "neutral");
+      return;
+    }
+    setHistoryFeedback(`正在清理 ${days} 天前的任务…`, "working");
+    const response = await fetch("/api/tasks/cleanup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        confirm: true,
+        olderThanDays: days,
+        protectRunId: state.currentRunId,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "一键清理失败");
+    state.selectedHistoryRunIds.clear();
+    setHistoryFeedback(
+      `已清理 ${result.deletedTasks} 个任务，释放 ${formatBytes(result.freedBytes)}。`,
+      "success",
+    );
+    await loadHistorySummary();
+  } catch (error) {
+    setHistoryFeedback(`清理失败：${error.message}`, "error");
+  }
+}
+
+function cleanupHistory() {
+  return quickCleanupHistory(30);
 }
 
 function restoreTask(task) {
@@ -618,9 +1065,10 @@ function clearAll() {
   els.fileInput.value = "";
   els.folderInput.value = "";
   setProgress(0);
-  els.quotaText.textContent = "当前已选择 0 张图片";
+  els.quotaText.textContent = "";
   renderSelection();
   renderQueue();
+  loadHistorySummary();
 }
 
 function resetSettings() {
@@ -646,6 +1094,28 @@ function syncColorInputs(source) {
   updateFormatMeta();
 }
 
+function bindImageDropTarget(target) {
+  ["dragenter", "dragover"].forEach((eventName) => {
+    target.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      target.classList.add("dragging");
+    });
+  });
+
+  ["dragleave", "drop"].forEach((eventName) => {
+    target.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      target.classList.remove("dragging");
+    });
+  });
+
+  target.addEventListener("drop", (event) => {
+    collectDroppedEntries(event.dataTransfer)
+      .then(setEntries)
+      .catch(() => setFiles(event.dataTransfer.files));
+  });
+}
+
 els.chooseSingleBtn.addEventListener("click", () => els.singleFileInput.click());
 els.chooseFilesBtn.addEventListener("click", () => els.fileInput.click());
 els.chooseFolderBtn.addEventListener("click", () => els.folderInput.click());
@@ -656,8 +1126,31 @@ els.processBtn.addEventListener("click", processFiles);
 els.rerunBtn.addEventListener("click", processFiles);
 els.clearBtn.addEventListener("click", resetSettings);
 els.clearListBtn.addEventListener("click", clearAll);
+els.refreshHistoryBtn.addEventListener("click", loadHistorySummary);
+els.deleteSelectedTasksBtn.addEventListener("click", deleteSelectedTasks);
+els.selectAllHistory.addEventListener("change", () => {
+  state.selectedHistoryRunIds.clear();
+  if (els.selectAllHistory.checked) {
+    for (const task of state.historyTasks) {
+      if (task.canDelete) state.selectedHistoryRunIds.add(task.runId);
+    }
+  }
+  renderHistoryTasks(state.historyTasks);
+});
+document.querySelectorAll("[data-cleanup-days]").forEach((button) => {
+  button.addEventListener("click", () => quickCleanupHistory(Number(button.dataset.cleanupDays)));
+});
 els.openOutputBtn.addEventListener("click", openCurrentRunFolder);
 els.openOutputBtnBottom.addEventListener("click", openCurrentRunFolder);
+els.themeToggleBtn.addEventListener("click", toggleTheme);
+els.modelSelect.addEventListener("change", selectRuntime);
+els.providerSelect.addEventListener("change", selectRuntime);
+
+preferredThemeQuery.addEventListener("change", (event) => {
+  if (!storedTheme()) {
+    applyTheme(event.matches ? "dark" : "light");
+  }
+});
 
 document.querySelectorAll('input[name="outputFormat"]').forEach((input) => {
   input.addEventListener("change", updateFormatMeta);
@@ -669,29 +1162,13 @@ els.edgeOptimize.addEventListener("change", updateFormatMeta);
 els.transparentBackground.addEventListener("change", updateFormatMeta);
 els.backgroundColor.addEventListener("input", () => syncColorInputs(els.backgroundColor));
 els.backgroundColorText.addEventListener("change", () => syncColorInputs(els.backgroundColorText));
+bindImageDropTarget(els.dropZone);
+bindImageDropTarget(els.originalUploadZone);
+document.addEventListener("paste", handleImagePaste);
 
-["dragenter", "dragover"].forEach((eventName) => {
-  els.dropZone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    els.dropZone.classList.add("dragging");
-  });
-});
-
-["dragleave", "drop"].forEach((eventName) => {
-  els.dropZone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    els.dropZone.classList.remove("dragging");
-  });
-});
-
-els.dropZone.addEventListener("drop", (event) => {
-  collectDroppedEntries(event.dataTransfer)
-    .then(setEntries)
-    .catch(() => setFiles(event.dataTransfer.files));
-});
-
-loadStatus();
-loadRecentTask();
+applyTheme(initialTheme());
+loadStatus().then(loadRuntimeControls);
+loadRecentTask().then(loadHistorySummary);
 updateFormatMeta();
 renderQueue();
 

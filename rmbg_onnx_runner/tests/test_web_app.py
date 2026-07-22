@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 import web_app
+from werkzeug.datastructures import FileStorage
 
 
 class FakeSession:
@@ -25,14 +26,21 @@ class FakeSession:
 def app_state():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
-        yield web_app.WebAppState(
-            model_path=root / "model.onnx",
+        models_dir = root / "models"
+        models_dir.mkdir()
+        active_model = models_dir / "active.onnx"
+        active_model.write_bytes(b"active")
+        state = web_app.WebAppState(
+            model_path=active_model,
             output_root=root / "outputs",
             provider="cpu",
             session=FakeSession(),
             access_token="test-token",
             server_origin="http://127.0.0.1:8765",
         )
+        state.models_dir = models_dir
+        state.disable_fallback = False
+        yield state
 
 
 @pytest.fixture
@@ -52,7 +60,15 @@ def test_index_serves_existing_browser_ui(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "一键抠图" in response.text
+    assert "Cutline" in response.text
+
+
+def test_cutline_logo_is_available_to_the_browser_ui(client):
+    response = client.get("/cutline-logo.png")
+
+    assert response.status_code == 200
+    assert response.content_type == "image/png"
+    assert response.data.startswith(b"\x89PNG\r\n\x1a\n")
 
 
 def test_status_preserves_provider_contract(client):
@@ -61,6 +77,66 @@ def test_status_preserves_provider_contract(client):
     assert response.status_code == 200
     assert response.get_json()["providerActive"] == ["CPUExecutionProvider"]
     assert response.get_json()["inputShape"] == [1, 3, 1024, 1024]
+
+
+def test_models_catalog_lists_onnx_files_and_active_model(client, app_state):
+    nested = app_state.models_dir / "portraits"
+    nested.mkdir()
+    (nested / "detail.onnx").write_bytes(b"detail")
+    (app_state.models_dir / "ignore.txt").write_text("ignore", encoding="utf-8")
+
+    response = client.get("/api/models")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "active": "active.onnx",
+        "models": [
+            {"id": "active.onnx", "name": "active.onnx", "sizeBytes": 6},
+            {
+                "id": "portraits/detail.onnx",
+                "name": "detail.onnx",
+                "sizeBytes": 6,
+            },
+        ],
+    }
+
+
+def test_select_model_replaces_session_after_success(client, app_state, monkeypatch):
+    selected = app_state.models_dir / "selected.onnx"
+    selected.write_bytes(b"selected")
+    created = []
+
+    class ReplacementSession(FakeSession):
+        def __init__(self, model_path, provider, disable_fallback):
+            created.append((model_path, provider, disable_fallback))
+
+    monkeypatch.setattr(web_app.rmbg_onnx, "RmbgSession", ReplacementSession)
+
+    response = client.post("/api/models/select", json={"model": "selected.onnx"})
+
+    assert response.status_code == 200
+    assert response.get_json()["active"] == "selected.onnx"
+    assert created == [(selected.resolve(), "cpu", False)]
+    assert app_state.model_path == selected.resolve()
+    assert isinstance(app_state.session, ReplacementSession)
+
+
+def test_select_model_rejects_paths_outside_models_directory(client, app_state, monkeypatch):
+    outside = app_state.models_dir.parent / "outside.onnx"
+    outside.write_bytes(b"outside")
+    created = []
+    monkeypatch.setattr(
+        web_app.rmbg_onnx,
+        "RmbgSession",
+        lambda **kwargs: created.append(kwargs),
+    )
+
+    response = client.post("/api/models/select", json={"model": "../outside.onnx"})
+
+    assert response.status_code == 400
+    assert "models" in response.get_json()["error"]
+    assert created == []
+    assert app_state.model_path.name == "active.onnx"
 
 
 def test_process_streams_ndjson(client):
@@ -79,6 +155,22 @@ def test_process_streams_ndjson(client):
     assert response.status_code == 200
     assert [event["type"] for event in events] == ["start", "item", "done"]
     assert events[1]["item"]["inputName"] == "folder/first.png"
+
+
+def test_detached_upload_survives_request_stream_closing():
+    original = FileStorage(
+        stream=io.BytesIO(b"image"),
+        filename="first.png",
+        content_type="image/png",
+    )
+
+    detached = web_app.detach_uploads([original])
+    original.close()
+    try:
+        assert detached[0].stream.read() == b"image"
+        assert detached[0].filename == "first.png"
+    finally:
+        web_app.close_uploads(detached)
 
 
 def test_process_returns_final_json_without_stream_accept(client):
@@ -116,6 +208,179 @@ def test_recent_tasks_returns_latest_manifest(client, app_state):
 
     assert response.status_code == 200
     assert response.get_json()["latest"]["runId"] == "20260722-121500"
+
+
+def test_history_preview_and_confirmed_cleanup(client, app_state):
+    app_state.history_retention_days = 30
+    app_state.history_max_tasks = 100
+    app_state.history_keep_latest = 1
+    for run_id, created_at in [
+        ("20240101-120000", "2024-01-01 12:00:00"),
+        ("20260722-121500", "2026-07-22 12:15:00"),
+    ]:
+        run_dir = app_state.output_root / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "runId": run_id,
+                    "createdAt": created_at,
+                    "status": "done",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    preview = client.get("/api/tasks/history?protectRunId=20260722-121500")
+    rejected = client.post("/api/tasks/cleanup", json={})
+    cleaned = client.post(
+        "/api/tasks/cleanup",
+        json={"confirm": True, "protectRunId": "20260722-121500"},
+    )
+
+    assert preview.status_code == 200
+    assert preview.get_json()["cleanupTasks"] == 1
+    assert preview.get_json()["policy"] == {
+        "retentionDays": 30,
+        "maxTasks": 100,
+        "keepLatest": 1,
+    }
+    assert rejected.status_code == 400
+    assert "确认" in rejected.get_json()["error"]
+    assert cleaned.status_code == 200
+    assert cleaned.get_json()["deletedTasks"] == 1
+    assert not (app_state.output_root / "20240101-120000").exists()
+    assert (app_state.output_root / "20260722-121500").is_dir()
+
+
+def test_task_management_lists_views_and_batch_deletes_history(client, app_state):
+    for run_id, created_at in [
+        ("20260720-120000", "2026-07-20 12:00:00"),
+        ("20260721-120000", "2026-07-21 12:00:00"),
+    ]:
+        run_dir = app_state.output_root / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "runId": run_id,
+                    "createdAt": created_at,
+                    "status": "done",
+                    "total": 1,
+                    "success": 1,
+                    "failed": 0,
+                    "items": [{"inputName": f"{run_id}.png"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    history = client.get("/api/tasks/history?protectRunId=20260721-120000")
+    detail = client.get("/api/tasks/20260720-120000")
+    rejected = client.post("/api/tasks/delete", json={"runIds": ["20260720-120000"]})
+    deleted = client.post(
+        "/api/tasks/delete",
+        json={
+            "confirm": True,
+            "runIds": ["20260720-120000", "20260721-120000"],
+            "protectRunId": "20260721-120000",
+        },
+    )
+
+    assert history.status_code == 200
+    assert [task["runId"] for task in history.get_json()["tasks"]] == [
+        "20260721-120000",
+        "20260720-120000",
+    ]
+    assert history.get_json()["tasks"][0]["canDelete"] is False
+    assert detail.status_code == 200
+    assert detail.get_json()["task"]["items"][0]["inputName"] == "20260720-120000.png"
+    assert rejected.status_code == 400
+    assert deleted.status_code == 200
+    assert deleted.get_json()["deletedRunIds"] == ["20260720-120000"]
+    assert (app_state.output_root / "20260721-120000").is_dir()
+
+
+def test_cleanup_history_accepts_seven_day_quick_rule(client, app_state):
+    for run_id, created_at in [
+        ("20260701-120000", "2026-07-01 12:00:00"),
+        ("20260720-120000", "2026-07-20 12:00:00"),
+    ]:
+        run_dir = app_state.output_root / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "runId": run_id,
+                    "createdAt": created_at,
+                    "status": "done",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    response = client.post(
+        "/api/tasks/cleanup",
+        json={"confirm": True, "olderThanDays": 7},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["policy"]["retentionDays"] == 7
+    assert not (app_state.output_root / "20260701-120000").exists()
+    assert (app_state.output_root / "20260720-120000").is_dir()
+
+
+def test_cleanup_history_rejects_unknown_quick_rule(client):
+    response = client.post(
+        "/api/tasks/cleanup",
+        json={"confirm": True, "olderThanDays": 14},
+    )
+
+    assert response.status_code == 400
+    assert "7" in response.get_json()["error"]
+    assert "30" in response.get_json()["error"]
+
+
+def test_parser_defaults_to_manual_history_cleanup():
+    args = web_app.build_parser().parse_args([])
+
+    assert args.models_dir == str(web_app.MODELS_DIR)
+    assert args.model is None
+    assert args.history_days == 30
+    assert args.history_max_tasks == 100
+    assert args.history_keep_latest == 10
+    assert args.auto_cleanup is False
+
+
+def test_load_state_rejects_startup_model_outside_models_directory(tmp_path, monkeypatch):
+    models_dir = tmp_path / "models"
+    models_dir.mkdir()
+    outside = tmp_path / "outside.onnx"
+    outside.write_bytes(b"outside")
+    created = []
+    monkeypatch.setattr(
+        web_app.rmbg_onnx,
+        "RmbgSession",
+        lambda **kwargs: created.append(kwargs) or FakeSession(),
+    )
+    args = web_app.build_parser().parse_args(
+        [
+            "--models-dir",
+            str(models_dir),
+            "--model",
+            str(outside),
+            "--output-dir",
+            str(tmp_path / "outputs"),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="models"):
+        web_app.load_state(args)
+
+    assert created == []
 
 
 def test_outputs_route_serves_only_output_root_files(client, app_state):
