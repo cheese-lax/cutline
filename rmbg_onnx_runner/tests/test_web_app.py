@@ -38,8 +38,13 @@ def app_state():
 @pytest.fixture
 def client(app_state):
     app = web_app.create_app(app_state, max_upload_mb=16)
-    app.config.update(TESTING=True)
+    app.config.update(TESTING=True, SERVER_NAME="127.0.0.1:8765")
     with app.test_client() as test_client:
+        response = test_client.get(
+            "/?token=test-token",
+            headers={"Host": "127.0.0.1:8765"},
+        )
+        assert response.status_code == 200
         yield test_client
 
 
@@ -133,3 +138,81 @@ def test_upload_limit_returns_json(client):
 
     assert response.status_code == 413
     assert "上传内容超过" in response.get_json()["error"]
+
+
+def test_root_rejects_wrong_token(client):
+    with client.application.test_client() as fresh_client:
+        response = fresh_client.get(
+            "/?token=wrong",
+            headers={"Host": "127.0.0.1:8765"},
+        )
+
+    assert response.status_code == 403
+
+
+def test_api_rejects_missing_cookie(client):
+    with client.application.test_client() as fresh_client:
+        response = fresh_client.get(
+            "/api/status",
+            headers={"Host": "127.0.0.1:8765"},
+        )
+
+    assert response.status_code == 403
+
+
+def test_rejects_untrusted_host(client):
+    response = client.get("/api/status", headers={"Host": "evil.example"})
+
+    assert response.status_code == 403
+
+
+def test_rejects_cross_origin_post(client):
+    response = client.post(
+        "/api/process",
+        data={"files": (io.BytesIO(b"image"), "first.png")},
+        headers={"Origin": "https://evil.example"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_open_output_is_post_only(client):
+    assert client.get("/api/open-output").status_code == 405
+
+
+def test_open_output_opens_only_selected_run(client, app_state, monkeypatch):
+    target = app_state.output_root / "20260722-130000" / "results"
+    target.mkdir(parents=True)
+    opened = []
+    monkeypatch.setattr(web_app, "open_in_file_manager", opened.append)
+
+    response = client.post(
+        "/api/open-output",
+        json={"runId": "20260722-130000"},
+    )
+
+    assert response.status_code == 200
+    assert opened == [target.resolve()]
+
+
+def test_open_output_rejects_parent_path(client):
+    response = client.post("/api/open-output", json={"runId": "../secret"})
+
+    assert response.status_code == 400
+
+
+def test_open_result_rejects_path_outside_output_root(client, tmp_path):
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"image")
+
+    response = client.post("/api/open-result", json={"path": str(outside)})
+
+    assert response.status_code == 400
+
+
+def test_secure_headers_are_present(client):
+    response = client.get("/api/status")
+
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert "default-src 'self'" in response.headers["Content-Security-Policy"]

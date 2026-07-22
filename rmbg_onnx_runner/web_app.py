@@ -3,13 +3,33 @@ from __future__ import annotations
 import argparse
 import json
 import platform
-import webbrowser
+import secrets
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
 import rmbg_onnx
-from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
-from task_service import iter_process_events, load_recent_tasks, options_from_form
+from flask import (
+    Flask,
+    Response,
+    abort,
+    jsonify,
+    request,
+    send_from_directory,
+    stream_with_context,
+)
+from runtime import (
+    find_available_port,
+    open_in_file_manager,
+    open_web_page,
+    require_loopback,
+)
+from task_service import (
+    iter_process_events,
+    load_recent_tasks,
+    options_from_form,
+    result_dir_for_run,
+)
 from waitress import serve
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -35,6 +55,39 @@ def create_app(state: WebAppState, max_upload_mb: int = 1024) -> Flask:
     app = Flask(__name__, static_folder=None)
     app.config["MAX_CONTENT_LENGTH"] = max_upload_mb * 1024 * 1024
     app.extensions["rmbg_state"] = state
+
+    def valid_host() -> bool:
+        return (
+            request.host == "127.0.0.1"
+            or request.host.startswith("127.0.0.1:")
+            or request.host == "localhost"
+            or request.host.startswith("localhost:")
+        )
+
+    @app.before_request
+    def protect_local_service():
+        if not valid_host():
+            abort(403)
+        supplied = request.cookies.get("koutu_access", "")
+        if request.path == "/":
+            supplied = request.args.get("token", "") or supplied
+        if not secrets.compare_digest(supplied, state.access_token):
+            abort(403)
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            origin = request.headers.get("Origin")
+            if origin and origin != state.server_origin:
+                abort(403)
+
+    @app.after_request
+    def secure_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self' blob: data:; "
+            "style-src 'self'; script-src 'self'; connect-src 'self'"
+        )
+        return response
 
     @app.get("/")
     def index():
@@ -110,12 +163,43 @@ def create_app(state: WebAppState, max_upload_mb: int = 1024) -> Flask:
         tasks = load_recent_tasks(state.output_root, limit=max(1, min(limit, 50)))
         return jsonify(tasks=tasks, latest=tasks[0] if tasks else None)
 
+    @app.post("/api/open-output")
+    def open_output():
+        run_id = (request.get_json(silent=True) or {}).get("runId", "")
+        try:
+            target = result_dir_for_run(state.output_root, str(run_id))
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+        if run_id and not target.exists():
+            return jsonify(error="任务结果目录不存在。"), 404
+        target.mkdir(parents=True, exist_ok=True)
+        target = target.resolve()
+        open_in_file_manager(target)
+        return jsonify(ok=True, path=str(target))
+
+    @app.post("/api/open-result")
+    def open_result():
+        raw_path = (request.get_json(silent=True) or {}).get("path", "")
+        if not raw_path:
+            return jsonify(error="缺少结果图片路径。"), 400
+        file_path = Path(str(raw_path)).resolve()
+        try:
+            file_path.relative_to(state.output_root.resolve())
+        except ValueError:
+            return jsonify(error="只能打开结果目录内的图片。"), 400
+        if not file_path.is_file():
+            return jsonify(error="结果图片不存在。"), 404
+        open_in_file_manager(file_path)
+        return jsonify(ok=True, path=str(file_path))
+
     @app.get("/outputs/<path:name>")
     def output_file(name: str):
         return send_from_directory(state.output_root, name)
 
-    @app.get("/<path:name>")
-    def static_asset(name: str):
+    @app.get("/style.css")
+    @app.get("/app.js")
+    def static_asset():
+        name = request.path.removeprefix("/")
         return send_from_directory(WEB_DIR, name)
 
     @app.errorhandler(RequestEntityTooLarge)
@@ -166,9 +250,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    origin = f"http://{args.host}:{args.port}"
     try:
-        state = load_state(args, server_origin=origin)
+        host = require_loopback(args.host)
+        port = find_available_port(host, args.port)
+        token = secrets.token_urlsafe(32)
+        origin = f"http://{host}:{port}"
+        state = load_state(
+            args,
+            access_token=token,
+            server_origin=origin,
+        )
     except Exception as exc:
         print("")
         print("Failed to load the model or execution provider.")
@@ -177,10 +268,10 @@ def main() -> int:
 
     app = create_app(state, max_upload_mb=args.max_upload_mb)
     print(f"Server ready: {origin}/")
-    print("Close this window to release the model session.")
+    print("The access token is embedded in the opened local URL.")
     if args.open:
-        webbrowser.open(f"{origin}/")
-    serve(app, host=args.host, port=args.port, threads=4)
+        threading.Timer(0.5, open_web_page, args=(f"{origin}/?token={token}",)).start()
+    serve(app, host=host, port=port, threads=4)
     return 0
 
 
