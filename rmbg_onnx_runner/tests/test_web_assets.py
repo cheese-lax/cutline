@@ -21,6 +21,26 @@ def contrast_ratio(first, second):
 
 
 class WebAssetTests(unittest.TestCase):
+    def test_frontend_defaults_to_english_and_exposes_a_persistent_language_switcher(self):
+        markup = (RUNNER_DIR / "web" / "index.html").read_text(encoding="utf-8")
+        script = (RUNNER_DIR / "web" / "app.js").read_text(encoding="utf-8")
+        css = (RUNNER_DIR / "web" / "style.css").read_text(encoding="utf-8")
+
+        self.assertIn('<html lang="en">', markup)
+        self.assertIn('id="languageSwitcher"', markup)
+        self.assertIn('data-language="zh-CN"', markup)
+        self.assertIn('data-language="en"', markup)
+        self.assertIn('class="language-switcher"', markup)
+        self.assertIn("function applyLanguage", script)
+        self.assertIn('localStorage.getItem("cutline-language")', script)
+        self.assertIn('localStorage.setItem("cutline-language"', script)
+        self.assertIn("const translations =", script)
+        self.assertIn("en:", script)
+        self.assertIn('"zh-CN":', script)
+        self.assertIn("initialLanguage()", script)
+        self.assertIn("applyLanguage(initialLanguage())", script)
+        self.assertIn(".language-switcher", css)
+
     def test_runtime_options_are_positioned_next_to_the_logo_in_the_topbar(self):
         markup = (RUNNER_DIR / "web" / "index.html").read_text(encoding="utf-8")
 
@@ -53,7 +73,7 @@ class WebAssetTests(unittest.TestCase):
         css = (RUNNER_DIR / "web" / "style.css").read_text(encoding="utf-8")
 
         self.assertIn('id="originalUploadZone"', markup)
-        self.assertIn("拖拽或粘贴图片到这里", markup)
+        self.assertIn('id="originalEmpty" data-i18n="dragOrPaste">Drag or paste an image here', markup)
         self.assertIn("originalUploadZone: document.querySelector", script)
         self.assertIn("bindImageDropTarget(els.originalUploadZone)", script)
         self.assertIn(".upload-target.dragging", css)
@@ -90,14 +110,15 @@ class WebAssetTests(unittest.TestCase):
         self.assertIn('name="outputFormat" value="jpg"', markup)
         self.assertIn('name="outputFormat" value="avif"', markup)
         claim = re.search(
-            r"<strong>上传单张图片</strong>\s*<small>(.*?)</small>",
+            r'<strong data-i18n="uploadSingle">Upload one image</strong>\s*'
+            r'<small data-i18n="supportedFormats">(.*?)</small>',
             markup,
         ).group(1)
         self.assertEqual(
             claim,
-            "支持 JPG、PNG、WEBP、静态 AVIF、BMP、单页 TIFF、ICO、TGA",
+            "Supports JPG, PNG, WEBP, static AVIF, BMP, single-page TIFF, ICO, and TGA",
         )
-        for unsupported_claim in ("GIF", "APNG", "动态 AVIF", "多页 TIFF", "PSD", "DDS", "JPEG 2000"):
+        for unsupported_claim in ("GIF", "APNG", "animated AVIF", "multi-page TIFF", "PSD", "DDS", "JPEG 2000"):
             self.assertNotIn(unsupported_claim, claim)
         self.assertIn('id="edgeOptimize"', markup)
         self.assertIn('id="transparentBackground"', markup)
@@ -175,7 +196,7 @@ class WebAssetTests(unittest.TestCase):
         markup = (RUNNER_DIR / "web" / "index.html").read_text(encoding="utf-8")
         script = (RUNNER_DIR / "web" / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn("打开本次结果文件夹", markup)
+        self.assertIn('data-i18n="openCurrentResults"', markup)
         self.assertIn("currentRunId", script)
         self.assertIn("function openCurrentRunFolder", script)
         self.assertIn('fetch("/api/open-output"', script)
@@ -220,24 +241,24 @@ class WebAssetTests(unittest.TestCase):
         self.assertIn('id="historyFeedback"', markup)
         self.assertIn('aria-live="polite"', markup)
         self.assertIn('id="cleanupHistoryBtn"', markup)
-        self.assertIn("一键清理", markup)
+        self.assertIn('data-i18n="quickCleanup">Quick cleanup', markup)
         self.assertIn("/api/tasks/history?protectRunId=", script)
         self.assertIn("fetch(historySummaryUrl())", script)
         self.assertIn('fetch("/api/tasks/cleanup"', script)
         self.assertIn("cleanupBytes", script)
-        self.assertIn("`${data.totalTasks || 0} 个任务 · ${formatBytes(data.totalBytes)}`", script)
+        self.assertIn('t("taskSummary", { count: data.totalTasks || 0, size: formatBytes(data.totalBytes) })', script)
         self.assertNotIn("保留规则", script)
         self.assertIn("window.confirm", script)
         self.assertIn("function setHistoryFeedback", script)
         self.assertIn("function quickCleanupHistory", script)
-        self.assertIn("没有 ${days} 天前的可清理任务", script)
+        self.assertIn('t("noCleanupTasks", { days })', script)
 
     def test_right_sidebar_manages_history_tasks_and_quick_cleanup(self):
         markup = (RUNNER_DIR / "web" / "index.html").read_text(encoding="utf-8")
         script = (RUNNER_DIR / "web" / "app.js").read_text(encoding="utf-8")
         css = (RUNNER_DIR / "web" / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('id="taskManagerTitle">任务管理', markup)
+        self.assertIn('id="taskManagerTitle" data-i18n="taskManager">Task manager', markup)
         self.assertIn('id="historyTaskList"', markup)
         self.assertIn('id="selectAllHistory"', markup)
         self.assertIn('id="deleteSelectedTasksBtn"', markup)
@@ -257,10 +278,10 @@ class WebAssetTests(unittest.TestCase):
         script = (RUNNER_DIR / "web" / "app.js").read_text(encoding="utf-8")
         css = (RUNNER_DIR / "web" / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn("服务会记住上次成功加载的模型", markup)
-        self.assertIn("包含子文件夹中的图片", markup)
-        self.assertIn("轻微柔化透明边缘，减少锯齿", markup)
-        self.assertIn("全选</span>", markup)
+        self.assertIn("The service remembers the last model it loaded successfully", markup)
+        self.assertIn("Includes images in subfolders", markup)
+        self.assertIn("Slightly softens transparent edges to reduce jaggedness", markup)
+        self.assertIn('data-i18n="selectAll">Select all</span>', markup)
         self.assertNotIn("批量选择多个文件", markup)
         self.assertNotIn("查看本次处理进度与结果", markup)
         self.assertNotIn("查看、复选或删除已完成任务", markup)
@@ -385,8 +406,8 @@ class WebAssetTests(unittest.TestCase):
 
         self.assertIn('class="task-content"', markup)
         self.assertIn('class="current-task-section"', markup)
-        self.assertIn('<h2 id="taskManagerTitle">任务管理</h2>', markup)
-        self.assertIn('<h2>历史任务</h2>', markup)
+        self.assertIn('<h2 id="taskManagerTitle" data-i18n="taskManager">Task manager</h2>', markup)
+        self.assertIn('<h2 data-i18n="historyTasks">Task history</h2>', markup)
         self.assertRegex(
             css,
             r"\.side-panel\s*\{[^}]*grid-template-rows:\s*minmax\(0, 2fr\) minmax\(0, 2fr\) minmax\(0, 1fr\);",

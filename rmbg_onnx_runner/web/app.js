@@ -72,16 +72,75 @@ const els = {
 
 const preferredThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let runtimeToastTimer;
+const translations = {
+  en: {
+    pageTitle: "Cutline Local Background Removal", languageSelector: "Language selector", processingSettings: "Processing settings",
+    backgroundRemovalModel: "Background removal model", modelMemoryHint: "The service remembers the last model it loaded successfully", loadingModels: "Reading the models folder…", inferenceProvider: "Inference provider", processingMode: "Processing mode", smartRemoval: "Smart removal", lineArtMode: "Line art", addModelPrefix: "Place an ONNX model in ", addModelSuffix: ", then refresh this page.", downloadModel: "Download the RMBG-2.0 ONNX model", modelLicenseNotice: "Confirm the model license before downloading or using it.", checkingService: "Checking service", upload: "Upload", uploadSingle: "Upload one image", uploadMultiple: "Upload multiple images", chooseFolder: "Choose folder", supportedFormats: "Supports JPG, PNG, WEBP, static AVIF, BMP, single-page TIFF, ICO, and TGA", includeSubfolders: "Includes images in subfolders", dropZone: "You can also drag images or folders here", outputSettings: "Output settings", reset: "Reset", outputFormat: "Output format", edgeOptimization: "Edge optimization", edgeOptimizeHint: "Slightly softens transparent edges to reduce jaggedness", transparentBackground: "Transparent background", backgroundColor: "Background color", backgroundHint: "Only applies when transparent background is off", startRemoval: "Start removal", preview: "Preview", rerunRemoval: "Run again", download: "Download", original: "Original", originalUploadArea: "Original image upload area. Drag or paste an image.", dragOrPaste: "Drag or paste an image here", result: "Result", waitingForProcessing: "Waiting to process", fileName: "File name", resolution: "Resolution", taskManager: "Task manager", clearList: "Clear list", currentTask: "Current task", total: "Total", processing: "Processing", completed: "Completed", pending: "Pending", openCurrentResults: "Open current results folder", historyTasks: "Task history", refresh: "Refresh", calculatingStorage: "Calculating storage…", selectAll: "Select all", deleteSelected: "Delete selected", quickCleanup: "Quick cleanup", cleanOlderThan7: "Clean older than 7 days", cleanOlderThan30: "Clean older than 30 days", darkMode: "Dark mode", lightMode: "Light mode", switchToDark: "Switch to dark theme", switchToLight: "Switch to light theme", noModel: "No available model", loading: "Loading model…", ready: "Service ready", processingImages: "Processing images…", switching: "Switching model…", runtimeError: "Model runtime error", stopped: "Model service stopped", serviceUnavailable: "Service unavailable", selectedImages: "{count} image(s) selected", openResultsTitle: "Open results folder for {runId}", openResultsHint: "Process images to open this run's results folder", transparent: "transparent background", lineArtTransparent: "line art, transparent background", background: "{color} background", lineArtHint: "No model is used; ideal for simple line art or signatures.", lineArtJpgHint: "No model is used; ideal for simple line art or signatures. JPG is composited with the selected background color.", jpgHint: "JPG does not support transparency; it will be composited with the selected background color", lineArtAlwaysTransparent: "Line art mode always uses a transparent background", backgroundColorHint: "Composites transparent areas with the selected background color", clickOriginal: "Click to view the original", waiting: "Waiting", clickCompare: "Click to compare; double-click to open the image folder", failed: "Failed", clickFailure: "Click to view the original and error details", viewing: "Viewing", locate: "Locate", failureStage: "Failure stage: {value}", failureReason: "Failure reason: {value}", suggestion: "Suggestion: {value}", errorCode: "Error code: {value}", unknown: "Unknown", noErrorDetail: "No error detail provided", retryAndCheckLogs: "Retry; if the problem continues, check the server log.", completedBatch: "Completed {success}; failed {failed}. Results: {outputDir}{failure}", processingStart: "Starting {total} image(s)", removingProgress: "Removing background {processed}/{total}", removingStart: "Starting background removal…", finalizing: "Finalizing…", uploading: "Uploading…", submitting: "Submitting {count} image(s)", tokenExpired: "The local service access token expired. Restart the launch script.", uploadTooLarge: "Upload exceeds the service limit.", requestFailed: "Request failed (HTTP {status}): {error}{detail}{suggestion}", checkServerLogs: " Check the server log and retry.", unableOpenResults: "Unable to open the results folder", unableOpenCurrentResults: "Unable to open this run's results folder", modelLoading: "Loading model…", modelSwitchFailed: "Model switch failed", modelSwitchSuccess: "Model switched: {model} · {provider} · {seconds} seconds", switchAfterProcessing: "A task is processing. Finish it before switching the model or provider.", noModelInFolder: "No ONNX model found in the models folder", unableReadModels: "Unable to read model list", running: "Running", completedWithFailed: "Completed, {count} failed", deleteSelectedCount: "Delete selected ({count})", noHistory: "No task history", selectTask: "Select task {runId}", currentViewing: " · currently viewing", view: "View", delete: "Delete", deleteTask: "Delete this history task", cannotDeleteTask: "Current or running tasks cannot be deleted", taskSummary: "{count} task(s) · {size}", unableHistorySummary: "Unable to read task history", loadHistoryFailed: "Failed to load task history: {error}", loadingTask: "Loading task details…", taskLoadFailed: "Failed to load task details", selectedHistoryTask: "Selected history task", loadedTask: "Loaded task {runId}.", viewFailed: "View failed: {error}", deleteConfirm: "Permanently delete {count} task(s)?", deletionCancelled: "Deletion cancelled.", deletingTasks: "Deleting {count} task(s)…", deleteHistoryFailed: "Failed to delete task history", deletedTasks: "Deleted {count} task(s), freed {size}.", deleteFailed: "Delete failed: {error}", checkingOldTasks: "Checking tasks older than {days} days…", cleanupPreviewFailed: "Unable to preview cleanup", noCleanupTasks: "No cleanup-eligible tasks older than {days} days.", cleanupConfirm: "Delete {count} task(s) older than {days} days and free about {size}?", cleanupCancelled: "Quick cleanup cancelled.", cleaningTasks: "Cleaning tasks older than {days} days…", quickCleanupFailed: "Quick cleanup failed", cleanedTasks: "Cleaned {count} task(s), freed {size}.", cleanupFailed: "Cleanup failed: {error}", restoredTask: "Restored recent task: {runId}", currentTaskStatus: "Current task",
+  },
+  "zh-CN": {
+    pageTitle: "Cutline 本地抠图", languageSelector: "语言选择", processingSettings: "处理设置", backgroundRemovalModel: "抠图模型", modelMemoryHint: "服务会记住上次成功加载的模型", loadingModels: "正在读取 models 文件夹…", inferenceProvider: "推理方式", processingMode: "处理模式", smartRemoval: "智能抠图", lineArtMode: "线稿模式", addModelPrefix: "将 ONNX 模型放入 ", addModelSuffix: " 后刷新页面。", downloadModel: "下载 RMBG-2.0 ONNX 模型", modelLicenseNotice: "下载和使用前请确认模型许可证。", checkingService: "服务检查中", upload: "上传", uploadSingle: "上传单张图片", uploadMultiple: "上传多张图片", chooseFolder: "选择文件夹", supportedFormats: "支持 JPG、PNG、WEBP、静态 AVIF、BMP、单页 TIFF、ICO、TGA", includeSubfolders: "包含子文件夹中的图片", dropZone: "也可以把图片或文件夹拖到这里", outputSettings: "输出设置", reset: "重置", outputFormat: "输出格式", edgeOptimization: "边缘优化", edgeOptimizeHint: "轻微柔化透明边缘，减少锯齿", transparentBackground: "透明背景", backgroundColor: "背景颜色", backgroundHint: "仅在关闭透明背景时生效", startRemoval: "开始抠图", preview: "预览", rerunRemoval: "重新抠图", download: "下载", original: "原图", originalUploadArea: "原图上传区域，支持拖拽或粘贴图片", dragOrPaste: "拖拽或粘贴图片到这里", result: "抠图结果", waitingForProcessing: "等待处理", fileName: "文件名", resolution: "分辨率", taskManager: "任务管理", clearList: "清空列表", currentTask: "当前任务", total: "总数", processing: "处理中", completed: "已完成", pending: "待处理", openCurrentResults: "打开本次结果文件夹", historyTasks: "历史任务", refresh: "刷新", calculatingStorage: "正在计算占用空间…", selectAll: "全选", deleteSelected: "删除所选", quickCleanup: "一键清理", cleanOlderThan7: "清理 7 天前", cleanOlderThan30: "清理 30 天前", darkMode: "深色模式", lightMode: "浅色模式", switchToDark: "切换到深色主题", switchToLight: "切换到浅色主题", noModel: "未找到可用模型", loading: "正在加载模型…", ready: "服务已就绪", processingImages: "正在处理图片…", switching: "正在切换模型…", runtimeError: "模型运行环境异常", stopped: "模型服务已停止", serviceUnavailable: "服务未就绪", selectedImages: "当前已选择 {count} 张图片", openResultsTitle: "打开 {runId} 的结果目录", openResultsHint: "完成一次抠图后可打开本次结果目录", transparent: "透明背景", lineArtTransparent: "线稿透明背景", background: "{color} 背景", lineArtHint: "不使用模型，适合背景单一的线稿或签名图", lineArtJpgHint: "不使用模型，适合背景单一的线稿或签名图；JPG 会按所选背景色合成。", jpgHint: "JPG 不支持透明通道，将自动合成为所选背景色", lineArtAlwaysTransparent: "线稿模式始终输出透明背景", backgroundColorHint: "将透明区域合成为所选背景色", clickOriginal: "单击查看原图", waiting: "等待中", clickCompare: "单击查看对比，双击打开图片所在文件夹", failed: "失败", clickFailure: "单击查看原图和失败信息", viewing: "查看中", locate: "定位", failureStage: "失败阶段：{value}", failureReason: "错误原因：{value}", suggestion: "处理建议：{value}", errorCode: "错误码：{value}", unknown: "未知", noErrorDetail: "未提供具体错误", retryAndCheckLogs: "请重试；若持续失败，请查看服务端日志。", completedBatch: "完成 {success} 张，失败 {failed} 张；结果目录：{outputDir}{failure}", processingStart: "开始处理 {total} 张图片", removingProgress: "正在抠图 {processed}/{total}", removingStart: "正在抠图...", finalizing: "正在收尾...", uploading: "正在上传...", submitting: "正在提交 {count} 张图片", tokenExpired: "本地服务访问令牌已失效，请重新运行启动脚本。", uploadTooLarge: "上传内容超过服务限制。", requestFailed: "请求失败（HTTP {status}）：{error}{detail}{suggestion}", checkServerLogs: " 请查看服务端日志后重试。", unableOpenResults: "无法打开结果文件夹", unableOpenCurrentResults: "无法打开本次结果文件夹", modelLoading: "模型加载中…", modelSwitchFailed: "模型切换失败", modelSwitchSuccess: "模型切换成功：{model} · {provider} · {seconds} 秒", switchAfterProcessing: "当前有任务正在处理，请完成后再切换模型或推理方式。", noModelInFolder: "models 文件夹中未找到 ONNX 模型", unableReadModels: "无法读取模型列表", running: "进行中", completedWithFailed: "完成，{count} 个失败", deleteSelectedCount: "删除所选 ({count})", noHistory: "暂无历史任务", selectTask: "选择任务 {runId}", currentViewing: " · 当前查看", view: "查看", delete: "删除", deleteTask: "删除这个历史任务", cannotDeleteTask: "当前或运行中任务不可删除", taskSummary: "{count} 个任务 · {size}", unableHistorySummary: "无法读取历史结果统计", loadHistoryFailed: "加载历史任务失败：{error}", loadingTask: "正在加载任务详情…", taskLoadFailed: "任务详情加载失败", selectedHistoryTask: "已选历史任务", loadedTask: "已加载任务 {runId}。", viewFailed: "查看失败：{error}", deleteConfirm: "将永久删除 {count} 个历史任务，是否继续？", deletionCancelled: "已取消删除。", deletingTasks: "正在删除 {count} 个任务…", deleteHistoryFailed: "删除历史任务失败", deletedTasks: "已删除 {count} 个任务，释放 {size}。", deleteFailed: "删除失败：{error}", checkingOldTasks: "正在检查 {days} 天前的历史任务…", cleanupPreviewFailed: "无法预览清理结果", noCleanupTasks: "没有 {days} 天前的可清理任务。", cleanupConfirm: "将删除 {count} 个 {days} 天前的任务，预计释放 {size}。是否继续？", cleanupCancelled: "已取消一键清理。", cleaningTasks: "正在清理 {days} 天前的任务…", quickCleanupFailed: "一键清理失败", cleanedTasks: "已清理 {count} 个任务，释放 {size}。", cleanupFailed: "清理失败：{error}", restoredTask: "已恢复最近任务：{runId}", currentTaskStatus: "当前任务",
+  },
+};
+let activeLanguage = "en";
+
+function t(key, values = {}) {
+  return (translations[activeLanguage][key] || translations.en[key] || key).replace(
+    /\\{(\\w+)\\}/g,
+    (_, name) => values[name] ?? `{${name}}`,
+  );
+}
+
+function storedLanguage() {
+  try {
+    return localStorage.getItem("cutline-language") === "zh-CN" ? "zh-CN" : "en";
+  } catch (error) {
+    return "en";
+  }
+}
+
+function initialLanguage() {
+  return storedLanguage();
+}
+
+function applyLanguage(language, persist = false) {
+  activeLanguage = language === "zh-CN" ? "zh-CN" : "en";
+  document.documentElement.lang = activeLanguage;
+  document.title = t("pageTitle");
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    element.textContent = t(element.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((element) => {
+    element.title = t(element.dataset.i18nTitle);
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+  });
+  document.querySelectorAll("[data-language]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.language === activeLanguage));
+  });
+  applyTheme(document.documentElement.dataset.theme || initialTheme());
+  updateFormatMeta();
+  renderSelection();
+  renderQueue();
+  if (persist) {
+    try {
+      localStorage.setItem("cutline-language", activeLanguage);
+    } catch (error) {
+      // Keep the chosen language for the current session if storage is unavailable.
+    }
+  }
+}
+
 const supportedImageExtensionPattern =
   /\.(apng|avifs?|bmp|dds|dib|gif|icb|ico|j2[ck]|jfif|jp[2cefx]|jpe?g|p[bgfnp]m|png|psd|qoi|tga|tiff?|vda|vst|webp)$/i;
 const runtimeStateText = {
-  no_model: "未找到可用模型",
-  loading: "正在加载模型…",
-  ready: "服务已就绪",
-  processing: "正在处理图片…",
-  switching: "正在切换模型…",
-  error: "模型运行环境异常",
-  stopped: "模型服务已停止",
+  no_model: "noModel",
+  loading: "loading",
+  ready: "ready",
+  processing: "processingImages",
+  switching: "switching",
+  error: "runtimeError",
+  stopped: "stopped",
 };
 
 function storedTheme() {
@@ -98,9 +157,9 @@ function applyTheme(theme, persist = false) {
   const dark = normalized === "dark";
   document.documentElement.dataset.theme = normalized;
   els.themeToggleBtn.setAttribute("aria-pressed", String(dark));
-  els.themeToggleBtn.setAttribute("aria-label", dark ? "切换到浅色主题" : "切换到深色主题");
-  els.themeToggleBtn.title = dark ? "切换到浅色主题" : "切换到深色主题";
-  els.themeLabel.textContent = dark ? "浅色模式" : "深色模式";
+  els.themeToggleBtn.setAttribute("aria-label", t(dark ? "switchToLight" : "switchToDark"));
+  els.themeToggleBtn.title = t(dark ? "switchToLight" : "switchToDark");
+  els.themeLabel.textContent = t(dark ? "lightMode" : "darkMode");
   if (persist) {
     try {
       localStorage.setItem("koutu-theme", normalized);
@@ -212,7 +271,7 @@ function setEntries(entries) {
   state.currentOutputDir = "";
   state.progress = { total: state.files.length, processed: 0, success: 0, failed: 0 };
   updateFormatMeta();
-  els.quotaText.textContent = state.files.length ? `当前已选择 ${state.files.length} 张图片` : "";
+  els.quotaText.textContent = state.files.length ? t("selectedImages", { count: state.files.length }) : "";
   setProgress(0);
   renderSelection();
   renderQueue();
@@ -234,7 +293,7 @@ function updateTaskActions() {
   const hasRun = Boolean(state.currentRunId);
   els.openOutputBtn.disabled = !hasRun;
   els.openOutputBtnBottom.disabled = !hasRun;
-  const title = hasRun ? `打开 ${state.currentRunId} 的结果目录` : "完成一次抠图后可打开本次结果目录";
+  const title = hasRun ? t("openResultsTitle", { runId: state.currentRunId }) : t("openResultsHint");
   els.openOutputBtn.title = title;
   els.openOutputBtnBottom.title = title;
 }
@@ -302,9 +361,9 @@ function updateFormatMeta() {
   const settings = currentSettings();
   const lineArtMode = settings.processingMode === "line_art";
   const supportsTransparency = outputSupportsTransparency(settings.outputFormat);
-  const background = settings.transparentBackground ? "透明背景" : `${settings.backgroundColor} 背景`;
+  const background = settings.transparentBackground ? t("transparent") : t("background", { color: settings.backgroundColor });
   els.formatMeta.textContent = `${settings.outputFormat.toUpperCase()}（${
-    lineArtMode && settings.transparentBackground ? "线稿透明背景" : background
+    lineArtMode && settings.transparentBackground ? t("lineArtTransparent") : background
   }）`;
   els.edgeOptimize.disabled = lineArtMode;
   els.edgeOptimizeHint.hidden = lineArtMode;
@@ -316,15 +375,15 @@ function updateFormatMeta() {
   els.processingModeHint.textContent = !lineArtMode
     ? ""
     : supportsTransparency
-    ? "不使用模型，适合背景单一的线稿或签名图"
-    : "不使用模型，适合背景单一的线稿或签名图；JPG 会按所选背景色合成。";
+    ? t("lineArtHint")
+    : t("lineArtJpgHint");
   els.backgroundHint.textContent = !supportsTransparency
-    ? "JPG 不支持透明通道，将自动合成为所选背景色"
+    ? t("jpgHint")
     : lineArtMode
-    ? "线稿模式始终输出透明背景"
+    ? t("lineArtAlwaysTransparent")
     : settings.transparentBackground
-    ? "仅在关闭透明背景时生效"
-    : "将透明区域合成为所选背景色";
+    ? t("backgroundHint")
+    : t("backgroundColorHint");
 }
 
 function updateStats() {
@@ -380,14 +439,14 @@ function createPendingCard(entry, status, index) {
   const card = document.createElement("article");
   card.className = `result-card ${status}`;
   prepareSelectableCard(card, index);
-  card.title = "单击查看原图";
+  card.title = t("clickOriginal");
   card.innerHTML = `
     <div class="queue-thumb placeholder"></div>
     <div class="result-meta">
       <strong title="${relativeName(entry)}">${entry.file.name}</strong>
-      <span>${status === "processing" ? "处理中" : "等待中"}</span>
+      <span>${status === "processing" ? t("processing") : t("waiting")}</span>
     </div>
-    <div class="card-state">${status === "processing" ? "处理中" : "待处理"}</div>
+    <div class="card-state">${status === "processing" ? t("processing") : t("pending")}</div>
   `;
   return card;
 }
@@ -404,11 +463,11 @@ function createResultCard(item, index) {
     img.src = item.outputUrl;
     img.alt = item.outputName || item.inputName;
     thumb.appendChild(img);
-    card.title = "单击查看对比，双击打开图片所在文件夹";
+    card.title = t("clickCompare");
     card.addEventListener("dblclick", () => openResultFolder(item));
   } else {
-    thumb.textContent = "失败";
-    card.title = "单击查看原图和失败信息";
+    thumb.textContent = t("failed");
+    card.title = t("clickFailure");
   }
   card.appendChild(thumb);
 
@@ -425,13 +484,13 @@ function createResultCard(item, index) {
 
   const status = document.createElement("div");
   status.className = "card-state";
-  status.textContent = index === state.selectedIndex && item.ok ? "查看中" : item.ok ? "已完成" : "失败";
+  status.textContent = index === state.selectedIndex && item.ok ? t("viewing") : item.ok ? t("completed") : t("failed");
   card.appendChild(status);
 
   const openButton = document.createElement("button");
   openButton.className = "card-open";
   openButton.type = "button";
-  openButton.textContent = item.ok ? "定位" : "-";
+  openButton.textContent = item.ok ? t("locate") : "-";
   openButton.disabled = !item.ok;
   openButton.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -451,17 +510,17 @@ function createResultCard(item, index) {
 function formatFailureDetail(item) {
   const error = item.error || {};
   return [
-    `失败阶段：${error.stage || "未知"}`,
-    `错误原因：${error.detail || error.reason || item.message || "未提供具体错误"}`,
-    `处理建议：${error.suggestion || "请重试；若持续失败，请查看服务端日志。"}`,
-    `错误码：${error.code || "PROCESS_FAILED"}`,
+    t("failureStage", { value: error.stage || t("unknown") }),
+    t("failureReason", { value: error.detail || error.reason || item.message || t("noErrorDetail") }),
+    t("suggestion", { value: error.suggestion || t("retryAndCheckLogs") }),
+    t("errorCode", { value: error.code || "PROCESS_FAILED" }),
   ].join("\n");
 }
 
 function completedBatchMessage(success, failed, outputDir) {
   const firstFailure = state.results.find((item) => item && !item.ok);
   const failure = firstFailure ? `；${formatFailureDetail(firstFailure).replaceAll("\n", "；")}` : "";
-  return `完成 ${success} 张，失败 ${failed} 张；结果目录：${outputDir}${failure}`;
+  return t("completedBatch", { success, failed, outputDir, failure });
 }
 
 function selectResult(index) {
@@ -527,9 +586,9 @@ function applyProcessEvent(event) {
       success: 0,
       failed: 0,
     };
-    els.resultTitle.textContent = "当前任务";
-    els.quotaText.textContent = `开始处理 ${state.progress.total} 张图片`;
-    els.processBtn.textContent = state.progress.total > 0 ? `正在抠图 0/${state.progress.total}` : "正在抠图...";
+    els.resultTitle.textContent = t("currentTask");
+    els.quotaText.textContent = t("processingStart", { total: state.progress.total });
+    els.processBtn.textContent = state.progress.total > 0 ? t("removingProgress", { processed: 0, total: state.progress.total }) : t("removingStart");
     setProgress(0);
     renderQueue();
     updateTaskActions();
@@ -547,8 +606,8 @@ function applyProcessEvent(event) {
     appendResult(event.item, queueIndex);
     const total = state.progress.total || 1;
     setProgress((state.progress.processed / total) * 100);
-    els.quotaText.textContent = `已完成 ${state.progress.processed}/${total}，成功 ${state.progress.success}，失败 ${state.progress.failed}`;
-    els.processBtn.textContent = `正在抠图 ${state.progress.processed}/${total}`;
+    els.quotaText.textContent = t("completedBatch", { success: state.progress.success, failed: state.progress.failed, outputDir: `${state.progress.processed}/${total}`, failure: "" });
+    els.processBtn.textContent = t("removingProgress", { processed: state.progress.processed, total });
     return;
   }
 
@@ -566,7 +625,7 @@ function applyProcessEvent(event) {
     };
     setProgress(100);
     els.quotaText.textContent = completedBatchMessage(event.success, event.failed, event.outputDir);
-    els.processBtn.textContent = "正在收尾...";
+    els.processBtn.textContent = t("finalizing");
     renderQueue();
     updateTaskActions();
   }
@@ -629,8 +688,8 @@ async function processFiles() {
   state.processing = true;
   document.body.classList.add("is-processing");
   renderSelection();
-  els.processBtn.textContent = "正在上传...";
-  els.quotaText.textContent = `正在提交 ${state.files.length} 张图片`;
+  els.processBtn.textContent = t("uploading");
+  els.quotaText.textContent = t("submitting", { count: state.files.length });
   resetProcessingView();
 
   const settings = currentSettings();
@@ -653,11 +712,11 @@ async function processFiles() {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      if (response.status === 403) throw new Error("本地服务访问令牌已失效，请重新运行启动脚本。");
-      if (response.status === 413) throw new Error(data.error || "上传内容超过服务限制。");
+      if (response.status === 403) throw new Error(t("tokenExpired"));
+      if (response.status === 413) throw new Error(data.error || t("uploadTooLarge"));
       const detail = data.detail ? `（${data.detail}）` : "";
-      const suggestion = data.suggestion ? ` ${data.suggestion}` : " 请查看服务端日志后重试。";
-      throw new Error(`请求失败（HTTP ${response.status}）：${data.error || "服务未返回具体原因"}${detail}${suggestion}`);
+      const suggestion = data.suggestion ? ` ${data.suggestion}` : t("checkServerLogs");
+      throw new Error(t("requestFailed", { status: response.status, error: data.error || t("noErrorDetail"), detail, suggestion }));
     }
     const contentType = response.headers.get("Content-Type") || "";
     if (response.body && contentType.includes("application/x-ndjson")) {
@@ -671,7 +730,7 @@ async function processFiles() {
   } finally {
     state.processing = false;
     document.body.classList.remove("is-processing");
-    els.processBtn.textContent = "开始抠图";
+    els.processBtn.textContent = t("startRemoval");
     renderSelection();
     renderQueue();
     await loadHistorySummary();
@@ -687,7 +746,7 @@ async function openResultFolder(item) {
       body: JSON.stringify({ path: item.outputPath }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "无法打开结果文件夹");
+    if (!response.ok) throw new Error(data.error || t("unableOpenResults"));
   } catch (error) {
     els.quotaText.textContent = error.message;
   }
@@ -702,7 +761,7 @@ async function openCurrentRunFolder() {
       body: JSON.stringify({ runId: state.currentRunId }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "无法打开本次结果文件夹");
+    if (!response.ok) throw new Error(data.error || t("unableOpenCurrentResults"));
   } catch (error) {
     els.quotaText.textContent = error.message;
   }
@@ -713,11 +772,11 @@ async function loadStatus() {
     const response = await fetch("/api/status");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    els.statusText.textContent = runtimeStateText[data.runtimeState] || "服务已就绪";
+    els.statusText.textContent = t(runtimeStateText[data.runtimeState] || "ready");
     els.statusText.classList.toggle("ready", data.runtimeState === "ready");
     if (data.modelsDir) els.modelsDirectory.textContent = data.modelsDir;
   } catch (error) {
-    els.statusText.textContent = "服务未就绪";
+    els.statusText.textContent = t("serviceUnavailable");
   }
 }
 
@@ -739,7 +798,7 @@ async function selectRuntime() {
   const previous = state.activeModel;
   els.modelSelect.dataset.switching = "true";
   els.modelSelect.disabled = true;
-  els.statusText.textContent = "模型加载中…";
+  els.statusText.textContent = t("modelLoading");
   let response;
   try {
     response = await fetch("/api/runtime/select", {
@@ -750,19 +809,19 @@ async function selectRuntime() {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const detail = data.detail ? `（${data.detail}）` : "";
-      throw new Error(`${data.error || "模型切换失败"}${detail}`);
+      throw new Error(`${data.error || t("modelSwitchFailed")}${detail}`);
     }
     state.activeModel = data.active;
     els.modelSelect.value = data.active;
-    els.statusText.textContent = "服务已就绪";
+    els.statusText.textContent = t("ready");
     els.statusText.classList.add("ready");
-    showRuntimeToast(`模型切换成功：${data.active} · ${provider} · ${Number(data.loadSeconds || 0).toFixed(3)} 秒`);
+    showRuntimeToast(t("modelSwitchSuccess", { model: data.active, provider, seconds: Number(data.loadSeconds || 0).toFixed(3) }));
     return true;
   } catch (error) {
     els.modelSelect.value = previous;
-    els.statusText.textContent = "模型切换失败";
+    els.statusText.textContent = t("modelSwitchFailed");
     els.statusText.classList.remove("ready");
-    showRuntimeToast(response?.status === 409 ? "当前有任务正在处理，请完成后再切换模型或推理方式。" : error.message);
+    showRuntimeToast(response?.status === 409 ? t("switchAfterProcessing") : error.message);
     return false;
   } finally {
     delete els.modelSelect.dataset.switching;
@@ -789,7 +848,7 @@ async function loadRuntimeControls() {
     if (models.length === 0) {
       const option = document.createElement("option");
       option.value = "";
-      option.textContent = "models 文件夹中未找到 ONNX 模型";
+      option.textContent = t("noModelInFolder");
       els.modelSelect.appendChild(option);
       els.modelSelect.disabled = true;
       els.modelHelp.hidden = false;
@@ -812,7 +871,7 @@ async function loadRuntimeControls() {
     els.modelSelect.replaceChildren();
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "无法读取模型列表";
+    option.textContent = t("unableReadModels");
     els.modelSelect.appendChild(option);
     els.modelSelect.disabled = true;
     els.quotaText.textContent = error.message;
@@ -832,9 +891,9 @@ function setHistoryFeedback(message, tone = "neutral") {
 }
 
 function historyStatusText(task) {
-  if (task.status === "running") return "进行中";
-  if (task.failed > 0) return `完成，${task.failed} 个失败`;
-  return "已完成";
+  if (task.status === "running") return t("running");
+  if (task.failed > 0) return t("completedWithFailed", { count: task.failed });
+  return t("completed");
 }
 
 function updateHistorySelection() {
@@ -844,7 +903,7 @@ function updateHistorySelection() {
   els.selectAllHistory.checked = deletable.length > 0 && selected.length === deletable.length;
   els.selectAllHistory.indeterminate = selected.length > 0 && selected.length < deletable.length;
   els.deleteSelectedTasksBtn.disabled = selected.length === 0;
-  els.deleteSelectedTasksBtn.textContent = selected.length ? `删除所选 (${selected.length})` : "删除所选";
+  els.deleteSelectedTasksBtn.textContent = selected.length ? t("deleteSelectedCount", { count: selected.length }) : t("deleteSelected");
 }
 
 function renderHistoryTasks(tasks) {
@@ -857,7 +916,7 @@ function renderHistoryTasks(tasks) {
   if (state.historyTasks.length === 0) {
     const empty = document.createElement("div");
     empty.className = "history-task-empty";
-    empty.textContent = "暂无历史任务";
+    empty.textContent = t("noHistory");
     els.historyTaskList.appendChild(empty);
     updateHistorySelection();
     return;
@@ -873,7 +932,7 @@ function renderHistoryTasks(tasks) {
     check.type = "checkbox";
     check.disabled = !task.canDelete;
     check.checked = state.selectedHistoryRunIds.has(task.runId);
-    check.setAttribute("aria-label", `选择任务 ${task.runId}`);
+    check.setAttribute("aria-label", t("selectTask", { runId: task.runId }));
     check.addEventListener("change", () => {
       if (check.checked) state.selectedHistoryRunIds.add(task.runId);
       else state.selectedHistoryRunIds.delete(task.runId);
@@ -887,22 +946,22 @@ function renderHistoryTasks(tasks) {
     title.title = task.runId;
     const meta = document.createElement("span");
     meta.textContent =
-      `${historyStatusText(task)} · ${task.total || 0} 张 · ${formatBytes(task.sizeBytes)}` +
-      (task.runId === state.currentRunId ? " · 当前查看" : "");
+      `${historyStatusText(task)} · ${task.total || 0} · ${formatBytes(task.sizeBytes)}` +
+      (task.runId === state.currentRunId ? t("currentViewing") : "");
     info.append(title, meta);
 
     const actions = document.createElement("div");
     actions.className = "history-task-actions";
     const viewButton = document.createElement("button");
     viewButton.type = "button";
-    viewButton.textContent = "查看";
+    viewButton.textContent = t("view");
     viewButton.addEventListener("click", () => viewHistoryTask(task.runId));
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "delete-task";
-    deleteButton.textContent = "删除";
+    deleteButton.textContent = t("delete");
     deleteButton.disabled = !task.canDelete;
-    deleteButton.title = task.canDelete ? "删除这个历史任务" : "当前或运行中任务不可删除";
+    deleteButton.title = task.canDelete ? t("deleteTask") : t("cannotDeleteTask");
     deleteButton.addEventListener("click", () => deleteHistoryRuns([task.runId]));
     actions.append(viewButton, deleteButton);
     card.append(check, info, actions);
@@ -912,7 +971,7 @@ function renderHistoryTasks(tasks) {
 }
 
 function renderHistorySummary(data) {
-  els.historySummary.textContent = `${data.totalTasks || 0} 个任务 · ${formatBytes(data.totalBytes)}`;
+  els.historySummary.textContent = t("taskSummary", { count: data.totalTasks || 0, size: formatBytes(data.totalBytes) });
   renderHistoryTasks(data.tasks || []);
 }
 
@@ -922,50 +981,50 @@ async function loadHistorySummary() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     renderHistorySummary(await response.json());
   } catch (error) {
-    els.historySummary.textContent = "无法读取历史结果统计";
-    setHistoryFeedback(`加载历史任务失败：${error.message}`, "error");
+    els.historySummary.textContent = t("unableHistorySummary");
+    setHistoryFeedback(t("loadHistoryFailed", { error: error.message }), "error");
   }
 }
 
 async function viewHistoryTask(runId) {
   try {
-    setHistoryFeedback("正在加载任务详情…", "working");
+    setHistoryFeedback(t("loadingTask"), "working");
     const response = await fetch(`/api/tasks/${encodeURIComponent(runId)}`);
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "任务详情加载失败");
+    if (!response.ok) throw new Error(data.error || t("taskLoadFailed"));
     restoreTask(data.task);
-    els.resultTitle.textContent = "已选历史任务";
-    setHistoryFeedback(`已加载任务 ${runId}。`, "success");
+    els.resultTitle.textContent = t("selectedHistoryTask");
+    setHistoryFeedback(t("loadedTask", { runId }), "success");
     await loadHistorySummary();
   } catch (error) {
-    setHistoryFeedback(`查看失败：${error.message}`, "error");
+    setHistoryFeedback(t("viewFailed", { error: error.message }), "error");
   }
 }
 
 async function deleteHistoryRuns(runIds) {
   if (!runIds.length) return;
-  const confirmed = window.confirm(`将永久删除 ${runIds.length} 个历史任务，是否继续？`);
+  const confirmed = window.confirm(t("deleteConfirm", { count: runIds.length }));
   if (!confirmed) {
-    setHistoryFeedback("已取消删除。", "neutral");
+    setHistoryFeedback(t("deletionCancelled"), "neutral");
     return;
   }
   try {
-    setHistoryFeedback(`正在删除 ${runIds.length} 个任务…`, "working");
+    setHistoryFeedback(t("deletingTasks", { count: runIds.length }), "working");
     const response = await fetch("/api/tasks/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ confirm: true, runIds, protectRunId: state.currentRunId }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "删除历史任务失败");
+    if (!response.ok) throw new Error(result.error || t("deleteHistoryFailed"));
     state.selectedHistoryRunIds.clear();
     setHistoryFeedback(
-      `已删除 ${result.deletedTasks} 个任务，释放 ${formatBytes(result.freedBytes)}。`,
+      t("deletedTasks", { count: result.deletedTasks, size: formatBytes(result.freedBytes) }),
       "success",
     );
     await loadHistorySummary();
   } catch (error) {
-    setHistoryFeedback(`删除失败：${error.message}`, "error");
+    setHistoryFeedback(t("deleteFailed", { error: error.message }), "error");
   }
 }
 
@@ -975,23 +1034,22 @@ function deleteSelectedTasks() {
 
 async function quickCleanupHistory(days) {
   try {
-    setHistoryFeedback(`正在检查 ${days} 天前的历史任务…`, "working");
+    setHistoryFeedback(t("checkingOldTasks", { days }), "working");
     const previewResponse = await fetch(historySummaryUrl(days));
     const preview = await previewResponse.json();
-    if (!previewResponse.ok) throw new Error(preview.error || "无法预览清理结果");
+    if (!previewResponse.ok) throw new Error(preview.error || t("cleanupPreviewFailed"));
     if (!preview.cleanupTasks) {
-      setHistoryFeedback(`没有 ${days} 天前的可清理任务。`, "success");
+      setHistoryFeedback(t("noCleanupTasks", { days }), "success");
       return;
     }
     const confirmed = window.confirm(
-      `将删除 ${preview.cleanupTasks} 个 ${days} 天前的任务，` +
-      `预计释放 ${formatBytes(preview.cleanupBytes)}。是否继续？`,
+      t("cleanupConfirm", { count: preview.cleanupTasks, days, size: formatBytes(preview.cleanupBytes) }),
     );
     if (!confirmed) {
-      setHistoryFeedback("已取消一键清理。", "neutral");
+      setHistoryFeedback(t("cleanupCancelled"), "neutral");
       return;
     }
-    setHistoryFeedback(`正在清理 ${days} 天前的任务…`, "working");
+    setHistoryFeedback(t("cleaningTasks", { days }), "working");
     const response = await fetch("/api/tasks/cleanup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1002,15 +1060,15 @@ async function quickCleanupHistory(days) {
       }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "一键清理失败");
+    if (!response.ok) throw new Error(result.error || t("quickCleanupFailed"));
     state.selectedHistoryRunIds.clear();
     setHistoryFeedback(
-      `已清理 ${result.deletedTasks} 个任务，释放 ${formatBytes(result.freedBytes)}。`,
+      t("cleanedTasks", { count: result.deletedTasks, size: formatBytes(result.freedBytes) }),
       "success",
     );
     await loadHistorySummary();
   } catch (error) {
-    setHistoryFeedback(`清理失败：${error.message}`, "error");
+    setHistoryFeedback(t("cleanupFailed", { error: error.message }), "error");
   }
 }
 
@@ -1037,7 +1095,7 @@ function restoreTask(task) {
     failed: task.failed || 0,
   };
   setProgress(state.progress.total > 0 ? (state.progress.processed / state.progress.total) * 100 : 0);
-  els.quotaText.textContent = `已恢复最近任务：${state.currentRunId}`;
+  els.quotaText.textContent = t("restoredTask", { runId: state.currentRunId });
   renderSelection();
   renderQueue();
 }
@@ -1143,6 +1201,9 @@ document.querySelectorAll("[data-cleanup-days]").forEach((button) => {
 els.openOutputBtn.addEventListener("click", openCurrentRunFolder);
 els.openOutputBtnBottom.addEventListener("click", openCurrentRunFolder);
 els.themeToggleBtn.addEventListener("click", toggleTheme);
+document.querySelectorAll("[data-language]").forEach((button) => {
+  button.addEventListener("click", () => applyLanguage(button.dataset.language, true));
+});
 els.modelSelect.addEventListener("change", selectRuntime);
 els.providerSelect.addEventListener("change", selectRuntime);
 
@@ -1166,7 +1227,7 @@ bindImageDropTarget(els.dropZone);
 bindImageDropTarget(els.originalUploadZone);
 document.addEventListener("paste", handleImagePaste);
 
-applyTheme(initialTheme());
+applyLanguage(initialLanguage());
 loadStatus().then(loadRuntimeControls);
 loadRecentTask().then(loadHistorySummary);
 updateFormatMeta();
