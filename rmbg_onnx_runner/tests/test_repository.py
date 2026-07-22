@@ -40,3 +40,17 @@ def test_source_distribution_does_not_reference_legacy_cgi():
 def test_legacy_windows_bootstrap_files_are_removed():
     assert not (ROOT / "rmbg_onnx_runner" / "install_windows.ps1").exists()
     assert not (ROOT / "rmbg_onnx_runner" / "requirements-win-gpu.txt").exists()
+
+
+def test_public_docs_cover_install_security_and_model_license():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+    license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+
+    for required_text in ["Windows", "macOS", "Linux", "127.0.0.1", "model.onnx"]:
+        assert required_text in readme
+    assert "CC BY-NC 4.0" in notices
+    assert "commercial" in notices.lower()
+    assert "localhost" in security.lower()
+    assert "MIT License" in license_text
