@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>一键抠图</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img">
+            <path d="M12 2 22 12 12 22 2 12z" />
+            <path d="M12 6 18 12 12 18 6 12z" />
+          </svg>
+        </div>
+        <h1>一键抠图</h1>
+        <span class="pill">本地部署</span>
+        <span class="pill">RMBG-2.0 ONNX</span>
+        <span class="pill">GPU/CUDA</span>
+        <span class="pill success">无需云端</span>
+      </div>
+      <div class="top-actions">
+        <span id="statusText" class="status">模型加载中</span>
+        <button id="openOutputBtn" class="ghost" type="button" disabled>打开本次结果文件夹</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="side-panel">
+        <section class="panel-block">
+          <h2>上传</h2>
+          <div class="upload-stack">
+            <button id="chooseSingleBtn" class="upload-card" type="button">
+              <span class="line-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3v11m0-11 4 4m-4-4-4 4M5 14v5h14v-5" /></svg>
+              </span>
+              <span>
+                <strong>上传单张图片</strong>
+                <small>支持 JPG、PNG、WEBP</small>
+              </span>
+            </button>
+            <button id="chooseFilesBtn" class="upload-card" type="button">
+              <span class="line-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M8 7h11v13H8zM5 4h11v3M5 4v13h3" /></svg>
+              </span>
+              <span>
+                <strong>上传多张图片</strong>
+                <small>批量选择多个文件</small>
+              </span>
+            </button>
+            <button id="chooseFolderBtn" class="upload-card" type="button">
+              <span class="line-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M3 7h7l2 3h9v10H3z" /></svg>
+              </span>
+              <span>
+                <strong>选择文件夹</strong>
+                <small>批量处理文件夹下的图片</small>
+              </span>
+            </button>
+          </div>
+          <div id="dropZone" class="drop-zone">也可以把图片或文件夹拖到这里</div>
+          <input id="singleFileInput" type="file" accept="image/*" hidden />
+          <input id="fileInput" type="file" accept="image/*" multiple hidden />
+          <input id="folderInput" type="file" accept="image/*" multiple webkitdirectory hidden />
+        </section>
+
+        <section class="panel-block settings-panel">
+          <div class="panel-title">
+            <h2>输出设置</h2>
+            <button id="clearBtn" class="tiny" type="button">重置</button>
+          </div>
+
+          <div id="processingModeLabel" class="field-label mode-label">
+            <span>处理模式</span>
+            <span
+              class="mode-info"
+              role="img"
+              aria-label="处理模式说明"
+              title="智能抠图使用 RMBG 模型；线稿模式自动识别背景色并按灰度差生成透明度"
+            >i</span>
+          </div>
+          <div
+            class="segmented processing-mode-control"
+            role="radiogroup"
+            aria-labelledby="processingModeLabel"
+          >
+            <label>
+              <input type="radio" name="processingMode" value="rmbg" checked />
+              <span>智能抠图</span>
+            </label>
+            <label>
+              <input type="radio" name="processingMode" value="line_art" />
+              <span>线稿模式</span>
+            </label>
+          </div>
+          <small id="processingModeHint" class="hint-left mode-hint">使用 RMBG 模型识别主体并移除背景</small>
+
+          <label class="field-label">输出格式</label>
+          <div class="segmented">
+            <label>
+              <input type="radio" name="outputFormat" value="png" checked />
+              <span>PNG</span>
+            </label>
+            <label>
+              <input type="radio" name="outputFormat" value="webp" />
+              <span>WEBP</span>
+            </label>
+          </div>
+
+          <div class="switch-row">
+            <span>边缘优化</span>
+            <label class="switch">
+              <input id="edgeOptimize" type="checkbox" checked />
+              <span></span>
+            </label>
+          </div>
+          <div class="switch-row">
+            <span>透明背景</span>
+            <label class="switch">
+              <input id="transparentBackground" type="checkbox" checked />
+              <span></span>
+            </label>
+          </div>
+
+          <label class="field-label" for="backgroundColor">背景颜色</label>
+          <div class="color-row">
+            <input id="backgroundColor" type="color" value="#ffffff" />
+            <input id="backgroundColorText" type="text" value="#FFFFFF" maxlength="7" />
+          </div>
+          <small id="backgroundHint" class="hint-left">仅在关闭透明背景时生效</small>
+
+          <button id="processBtn" class="primary" type="button" disabled>开始抠图</button>
+          <p id="quotaText" class="privacy-note">当前已选择 0 张图片</p>
+        </section>
+      </aside>
+
+      <section class="preview-panel">
+        <div class="section-head">
+          <h2>预览</h2>
+          <div class="preview-actions">
+            <button id="rerunBtn" class="ghost" type="button" disabled>重新抠图</button>
+            <a id="downloadFirstBtn" class="download disabled" href="#" download>下载</a>
+          </div>
+        </div>
+        <div class="preview-grid">
+          <figure>
+            <figcaption>原图</figcaption>
+            <div class="image-stage">
+              <img id="originalPreview" alt="" />
+              <span id="originalEmpty">等待上传</span>
+            </div>
+          </figure>
+          <figure>
+            <figcaption>抠图结果</figcaption>
+            <div class="image-stage checker">
+              <img id="resultPreview" alt="" />
+              <span id="resultEmpty">等待处理</span>
+            </div>
+          </figure>
+        </div>
+        <div class="file-summary">
+          <div>
+            <span class="summary-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6zM14 3v4h4" /></svg>
+            </span>
+            <span>
+              <small>文件名</small>
+              <strong id="fileNameMeta">-</strong>
+            </span>
+          </div>
+          <div>
+            <span class="summary-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5" /></svg>
+            </span>
+            <span>
+              <small>分辨率</small>
+              <strong id="resolutionMeta">-</strong>
+            </span>
+          </div>
+          <div>
+            <span class="summary-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
+            </span>
+            <span>
+              <small>输出格式</small>
+              <strong id="formatMeta">PNG（透明背景）</strong>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="task-panel">
+        <div class="section-head">
+          <h2 id="resultTitle">批量任务</h2>
+          <button id="clearListBtn" class="ghost danger-text" type="button">清空列表</button>
+        </div>
+        <div class="task-stats">
+          <div><strong id="totalCount">0</strong><span>总数</span></div>
+          <div><strong id="processingCount">0</strong><span>处理中</span></div>
+          <div><strong id="completedCount">0</strong><span>已完成</span></div>
+          <div><strong id="pendingCount">0</strong><span>待处理</span></div>
+        </div>
+        <div id="progressBar" class="progress"><span></span></div>
+        <div id="resultGrid" class="result-grid"></div>
+        <div class="task-actions">
+          <button id="openOutputBtnBottom" class="ghost" type="button" disabled>打开本次结果文件夹</button>
+        </div>
+      </aside>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

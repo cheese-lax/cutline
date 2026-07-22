@@ -1,0 +1,18 @@
+[project]
+name = "rmbg-onnx-runner"
+version = "0.1.0"
+description = "Local browser UI for ONNX background removal"
+requires-python = ">=3.11,<3.14"
+
+[tool.pytest.ini_options]
+testpaths = ["rmbg_onnx_runner/tests"]
+pythonpath = ["rmbg_onnx_runner"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 110
+exclude = ["rmbg_onnx_runner/web"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
