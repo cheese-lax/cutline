@@ -50,7 +50,7 @@ def test_legacy_windows_bootstrap_files_are_removed():
 
 
 def test_public_docs_cover_install_security_and_model_license():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README_ZH.md").read_text(encoding="utf-8")
     notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
     security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
@@ -72,13 +72,14 @@ def test_public_docs_cover_install_security_and_model_license():
     assert "MIT License" in license_text
 
 
-def test_english_readme_covers_the_same_public_setup_and_security_basics():
-    readme = (ROOT / "README.en.md").read_text(encoding="utf-8")
+def test_root_readme_is_english_and_covers_the_same_public_setup_and_security_basics():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     for required_text in ["Windows", "macOS", "Linux", "127.0.0.1", "models/"]:
         assert required_text in readme
     assert "English" in readme
     assert "Chinese" in readme
+    assert "README_ZH.md" in readme
     assert "https://huggingface.co/briaai/RMBG-2.0" in readme
     assert "THIRD_PARTY_NOTICES.md" in readme
 
